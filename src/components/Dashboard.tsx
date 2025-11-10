@@ -6,7 +6,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Box, useInput, Text, type Key } from 'ink';
 import Spinner from 'ink-spinner';
 import fuzzy from 'fuzzy';
-import type { GitRepo, RepoGroup, View, SortMode, DebugInfo } from '../types/index.js';
+import type { GitRepo, RepoGroup, View, SortMode, DebugInfo, AppConfig } from '../types/index.js';
 
 /**
  * Navigation item in flattened list
@@ -63,6 +63,15 @@ export const Dashboard: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
+  }, []);
+
+  /**
+   * Handle config changes from settings view
+   */
+  const handleConfigChange = useCallback((changes: Partial<AppConfig>) => {
+    configManager.set(changes);
+    // Note: Config changes take effect immediately but don't require repo reload
+    // unless basePaths/excludePatterns change (not editable in UI yet)
   }, []);
 
   /**
@@ -433,7 +442,9 @@ export const Dashboard: React.FC = () => {
 
         {view === 'help' && <HelpView />}
 
-        {view === 'settings' && <SettingsView config={configManager.get()} />}
+        {view === 'settings' && (
+          <SettingsView config={configManager.get()} onConfigChange={handleConfigChange} />
+        )}
 
         {view === 'detail' && selectedRepo && <DetailView repo={selectedRepo} />}
       </Box>

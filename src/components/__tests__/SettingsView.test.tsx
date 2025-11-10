@@ -151,11 +151,21 @@ describe('SettingsView', () => {
   });
 
   describe('Footer', () => {
-    it('should display close instructions', () => {
+    it('should display close instructions when read-only', () => {
       const { lastFrame } = render(<SettingsView config={mockConfig} />);
       const output = lastFrame();
       expect(output).toContain('Press Escape or c to close');
-      expect(output).toContain('Editing coming soon');
+    });
+
+    it('should display edit shortcuts when onConfigChange provided', () => {
+      const mockOnChange = vi.fn();
+      const { lastFrame } = render(<SettingsView config={mockConfig} onConfigChange={mockOnChange} />);
+      const output = lastFrame();
+      expect(output).toContain('Press Escape or c to close');
+      expect(output).toContain('d: Max Depth');
+      expect(output).toContain('i: Interval');
+      expect(output).toContain('h: Hidden');
+      expect(output).toContain('t: Theme');
     });
   });
 
