@@ -37,26 +37,6 @@ export const Dashboard: React.FC = () => {
   const [lastKeypress, setLastKeypress] = useState<string>('');
   const [renderTime, setRenderTime] = useState<number>(0);
 
-  // Load repos on mount
-  useEffect(() => {
-    loadRepos();
-  }, [loadRepos]);
-
-  // Group repos whenever they change
-  useEffect(() => {
-    const grouped = groupRepos(repos);
-    setGroups(grouped);
-  }, [repos, sortMode, groupRepos]);
-
-  // Track render time for debug
-  useEffect(() => {
-    if (!isDev) return;
-    const start = Date.now();
-    return () => {
-      setRenderTime(Date.now() - start);
-    };
-  });
-
   /**
    * Load all repositories
    */
@@ -133,6 +113,26 @@ export const Dashboard: React.FC = () => {
       { status: 'clean', repos: grouped.clean, expanded: false },
     ];
   }, [sortMode, sortRepos]);
+
+  // Load repos on mount
+  useEffect(() => {
+    loadRepos();
+  }, [loadRepos]);
+
+  // Group repos whenever they change
+  useEffect(() => {
+    const grouped = groupRepos(repos);
+    setGroups(grouped);
+  }, [repos, sortMode, groupRepos]);
+
+  // Track render time for debug
+  useEffect(() => {
+    if (!isDev) return;
+    const start = Date.now();
+    return () => {
+      setRenderTime(Date.now() - start);
+    };
+  });
 
   /**
    * Build flattened navigation list from groups
