@@ -48,7 +48,7 @@ export interface AppConfig {
   ai: AIConfig;
 }
 
-export type View = 'home' | 'detail' | 'settings' | 'help';
+export type View = 'home' | 'detail' | 'settings' | 'help' | 'agent';
 
 export type SortMode = 'name' | 'status' | 'recent' | 'changes' | 'frecency';
 

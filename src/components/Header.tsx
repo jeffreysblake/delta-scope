@@ -5,6 +5,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import type { View } from '../types/index.js';
+import type { AgentStatus } from '../types/agent.js';
 
 interface HeaderProps {
   totalRepos: number;
@@ -12,6 +13,8 @@ interface HeaderProps {
   lastRefresh: Date | null;
   view: View;
   currentRepoName?: string;
+  agentStatus?: AgentStatus;
+  agentEnabled?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -20,8 +23,35 @@ export const Header: React.FC<HeaderProps> = ({
   lastRefresh,
   view,
   currentRepoName,
+  agentStatus = 'not_configured',
+  agentEnabled = false,
 }) => {
   const refreshText = lastRefresh ? lastRefresh.toLocaleTimeString() : 'Never';
+
+  // Agent status indicator
+  const getAgentStatusIndicator = () => {
+    if (!agentEnabled) {
+      return null;
+    }
+
+    const statusConfig = {
+      ready: { symbol: '🟢', text: 'AI: Ready', color: 'green' },
+      analyzing: { symbol: '🟡', text: 'AI: Analyzing', color: 'yellow' },
+      error: { symbol: '🔴', text: 'AI: Error', color: 'red' },
+      disabled: { symbol: '⚪', text: 'AI: Disabled', color: 'gray' },
+      not_configured: { symbol: '⚪', text: 'AI: Not Configured', color: 'gray' },
+    };
+
+    const config = statusConfig[agentStatus];
+    return (
+      <>
+        <Text> | </Text>
+        <Text color={config.color as 'green' | 'yellow' | 'red' | 'gray'}>
+          {config.symbol} {config.text}
+        </Text>
+      </>
+    );
+  };
 
   // Build breadcrumb trail
   const getBreadcrumb = () => {
@@ -64,6 +94,15 @@ export const Header: React.FC<HeaderProps> = ({
           Help
         </Text>
       );
+    } else if (view === 'agent') {
+      parts.push(
+        <Text key="sep1" dimColor>
+          {' > '}
+        </Text>,
+        <Text key="agent" color="magenta">
+          AI Insights
+        </Text>
+      );
     }
 
     return <>{parts}</>;
@@ -81,6 +120,7 @@ export const Header: React.FC<HeaderProps> = ({
               <Text color="yellow">{needsAttention} need attention</Text>
             </>
           )}
+          {getAgentStatusIndicator()}
           <Text dimColor>]</Text>
         </Box>
       </Box>

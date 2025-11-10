@@ -32,6 +32,7 @@
     "cli"
   ],
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.68.0",
     "better-sqlite3": "^12.4.1",
     "chalk": "^5.3.0",
     "commander": "^11.1.0",
