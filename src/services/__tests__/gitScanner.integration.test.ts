@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { scanForRepos } from '../gitScanner.js';
-import { mkdir, writeFile, rm } from 'fs/promises';
+import { mkdir, rm } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import type { AppConfig } from '../../types/index.js';

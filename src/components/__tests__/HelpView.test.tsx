@@ -19,9 +19,9 @@ describe('HelpView', () => {
     expect(output).toContain('Navigate');
     expect(output).toContain('Expand');
     expect(output).toContain('Filter');
-    expect(output).toContain('Sort');
-    expect(output).toContain('Favorite');
-    expect(output).toContain('Details');
+    expect(output).toContain('Cycle sort modes');
+    expect(output).toContain('Toggle favorite');
+    expect(output).toContain('Show repo details');
     expect(output).toContain('Refresh');
     expect(output).toContain('Quit');
   });
