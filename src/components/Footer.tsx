@@ -18,6 +18,17 @@ export const Footer: React.FC<FooterProps> = ({ view }) => {
     );
   }
 
+  if (view === 'settings') {
+    return (
+      <Box borderStyle="single" borderColor="cyan" paddingX={1}>
+        <Text dimColor>Esc/c: Close | </Text>
+        <Text dimColor>?: Help | </Text>
+        <Text dimColor>q: Quit | </Text>
+        <Text color="yellow">Editing coming soon</Text>
+      </Box>
+    );
+  }
+
   if (view === 'detail') {
     return (
       <Box borderStyle="single" borderColor="cyan" paddingX={1}>
@@ -38,6 +49,7 @@ export const Footer: React.FC<FooterProps> = ({ view }) => {
       <Text dimColor>/: Filter | </Text>
       <Text dimColor>s: Sort | </Text>
       <Text dimColor>r: Refresh | </Text>
+      <Text dimColor>c: Settings | </Text>
       <Text dimColor>?: Help | </Text>
       <Text dimColor>q: Quit</Text>
     </Box>

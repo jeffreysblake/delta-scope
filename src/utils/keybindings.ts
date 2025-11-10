@@ -31,13 +31,13 @@ Keyboard Shortcuts:
   ↑/↓ or k/j     Navigate repos
   Enter          Expand/collapse group, or show repo details
   /              Filter repos (fuzzy search)
-  Escape         Clear filter, or return from detail view
+  Escape         Clear filter, or return from views
   d              Show repo details
   f              Toggle favorite (star)
   s              Cycle sort modes (name → status → recent → changes)
   r              Refresh all repos
   h              Home view (return from detail)
+  c              Settings (view configuration)
   ?              Show this help
-  c              Settings (coming soon)
   q              Quit
 `;

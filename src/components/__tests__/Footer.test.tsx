@@ -29,11 +29,11 @@ describe('Footer', () => {
   it('should render keyboard shortcuts for settings view', () => {
     const { lastFrame } = render(<Footer view="settings" />);
 
-    // Settings view shows same shortcuts as home for now
+    // Settings view shows close shortcuts
     const output = lastFrame();
-    expect(output).toContain('↑/↓');
-    expect(output).toContain('f:');
-    expect(output).toContain('/');
+    expect(output).toContain('Esc/c');
+    expect(output).toContain('Close');
+    expect(output).toContain('Editing coming soon');
   });
 
   it('should render keyboard shortcuts for detail view', () => {

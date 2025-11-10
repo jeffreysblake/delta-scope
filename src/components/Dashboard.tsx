@@ -21,6 +21,7 @@ import { HelpView } from './HelpView.js';
 import { DebugPanel } from './DebugPanel.js';
 import { FilterInput } from './FilterInput.js';
 import { DetailView } from './DetailView.js';
+import { SettingsView } from './SettingsView.js';
 import { scanForRepos } from '../services/gitScanner.js';
 import { getMultipleRepoStatus } from '../services/gitStatus.js';
 import { configManager } from '../services/configManager.js';
@@ -269,6 +270,14 @@ export const Dashboard: React.FC = () => {
       return;
     }
 
+    // Settings view - Escape or c returns to home
+    if (view === 'settings') {
+      if (key.escape || input === 'c') {
+        setView('home');
+      }
+      return;
+    }
+
     // Help view - any key returns to home
     if (view === 'help') {
       setView('home');
@@ -282,6 +291,11 @@ export const Dashboard: React.FC = () => {
 
     if (input === '?') {
       setView('help');
+      return;
+    }
+
+    if (input === 'c') {
+      setView('settings');
       return;
     }
 
@@ -418,6 +432,8 @@ export const Dashboard: React.FC = () => {
         )}
 
         {view === 'help' && <HelpView />}
+
+        {view === 'settings' && <SettingsView config={configManager.get()} />}
 
         {view === 'detail' && selectedRepo && <DetailView repo={selectedRepo} />}
       </Box>
