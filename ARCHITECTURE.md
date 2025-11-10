@@ -1137,49 +1137,75 @@ export class ReminderService {
 
 ---
 
-## Open Questions & Decisions Needed
+## Architecture Decisions ✅
 
-1. **Database Location:** Where should SQLite file live?
-   - Option A: `~/.config/delta-scope/delta-scope.db`
-   - Option B: `~/.local/share/delta-scope/delta-scope.db`
-   - **Decision:** TBD
+**Status:** Finalized 2025-11-09
+**Decided By:** Jeffrey Blake
 
-2. **AI Provider Default:** Which AI provider should be default?
-   - Option A: No AI by default (user must configure)
-   - Option B: Local model by default (privacy-first)
-   - Option C: Anthropic by default (best quality)
-   - **Decision:** TBD
+1. **Database Location**
+   - **Decision:** `~/.local/share/delta-scope/delta-scope.db` (configurable)
+   - **Configuration:** `settings.json` → `database.location`
+   - **Rationale:** Follows XDG Base Directory spec (data in ~/.local/share, config in ~/.config)
+   - **Configurable:** Yes, users can override in settings
 
-3. **Sync Conflict Resolution:** When importing, if repo exists at different path, what to do?
-   - Option A: Skip (don't clone)
-   - Option B: Clone to new path (allow duplicates)
-   - Option C: Prompt user interactively
-   - **Decision:** TBD
+2. **AI Provider Default**
+   - **Decision:** Local model (privacy-first)
+   - **Configuration:** `settings.json` → `ai.provider` (default: "local")
+   - **Options:** local (llama3), anthropic (Claude), openai (GPT-4)
+   - **Rationale:** Privacy-first by default, no API key required, works offline
+   - **Note:** AI features disabled by default (`ai.enabled: false`)
 
-4. **Ghost Repo Cleanup:** How long to keep ghost repos in DB?
-   - Option A: Forever (never auto-delete)
-   - Option B: 30 days after marked as ghost
-   - Option C: User-configurable retention
-   - **Decision:** TBD
+3. **Workflow Execution**
+   - **Decision:** Separate daemon process
+   - **Configuration:** `settings.json` → `workflows.daemon.enabled` (default: true)
+   - **Communication:** IPC (port 3857) or shared files
+   - **Benefits:** Non-blocking, runs when TUI closed, survives crashes
+   - **Implementation:** Phase 3 (v0.3.0)
 
-5. **Event Hook Security:** Should user-defined hooks run in sandbox?
-   - Option A: No sandbox (trust user)
-   - Option B: VM2 sandbox (safe but complex)
-   - Option C: Only allow declarative hooks (no code execution)
-   - **Decision:** TBD
+4. **Ghost Repo Cleanup**
+   - **Decision:** Keep forever by default (user-configurable)
+   - **Configuration:** `settings.json` → `database.ghost_retention_days` (default: 0)
+   - **Values:** 0 = keep forever, >0 = auto-delete after N days
+   - **Rationale:** Users may want to restore old repos, disk space is cheap
+
+5. **Event Hook Security**
+   - **Decision:** Trust user by default (no sandbox, configurable)
+   - **Configuration:** `settings.json` → `hooks.sandbox_enabled` (default: false)
+   - **Options:** false = trust user, true = sandbox with vm2
+   - **Rationale:** Power users, simpler implementation, can add sandbox later
+   - **Future:** May add sandbox option in Phase 4 for shared hooks
+
+6. **Sync Conflict Resolution**
+   - **Decision:** Prompt user interactively (Option C)
+   - **Fallback:** Skip if in non-interactive mode
+   - **Rationale:** Most flexible, lets user decide per-repo
 
 ---
 
 ## Next Steps
 
-1. **Review this architecture doc** - Discuss and refine
-2. **Make architecture decisions** - Resolve open questions
-3. **Create detailed schema migrations** - SQL migration files
-4. **Prototype persistence layer** - Build RepoRepository
-5. **Update current code** - Fix critical issues from code review
-6. **Write comprehensive tests** - Service layer coverage
+### Immediate (Phase 1 - v0.2.0)
+1. ✅ **Architecture decisions made** - All decisions finalized
+2. ⏳ **Fix critical issues** - Navigation, tests, linting (Week 1)
+3. ⏳ **Complete MVP features** - Filter, detail view, favorites (Week 2-3)
+4. ⏳ **Achieve 70% test coverage** - Add Dashboard and service tests
+
+### Phase 2 (v0.3.0)
+5. **Create schema migrations** - SQL migration files for better-sqlite3
+6. **Implement persistence layer** - RepoRepository, HistoryRepository, etc.
+7. **Build event system** - EventBus and hook system
+8. **Add workflow daemon** - Separate process for background tasks
+
+### Phase 3 (v0.4.0)
+9. **Implement sync** - Export/import/clone across machines
+10. **Add path mapping** - Adapt repos to different machine structures
+
+### Phase 4 (v1.0.0)
+11. **Integrate AI** - Classification, suggestions, itineraries
+12. **Add reminders** - Time-based notifications
 
 ---
 
-**Document Status:** 🟡 Draft - Awaiting Review & Discussion
-**Next Review:** After addressing code review findings
+**Document Status:** ✅ Approved - Ready for Implementation
+**Next Review:** After Phase 1 (v0.2.0) complete
+**Implementation:** Starting Phase 1 Week 1
