@@ -7,13 +7,17 @@ describe('Footer', () => {
   it('should render keyboard shortcuts for home view', () => {
     const { lastFrame } = render(<Footer view="home" />);
 
-    // Only showing working shortcuts (removed Filter, Favorite, Details)
-    expect(lastFrame()).toContain('Navigate');
-    expect(lastFrame()).toContain('Expand');
-    expect(lastFrame()).toContain('Sort');
-    expect(lastFrame()).toContain('Refresh');
-    expect(lastFrame()).toContain('Help');
-    expect(lastFrame()).toContain('Quit');
+    // All working shortcuts including new features
+    const output = lastFrame();
+    expect(output).toContain('↑/↓');
+    expect(output).toContain('Enter');
+    expect(output).toContain('d:');
+    expect(output).toContain('f:');
+    expect(output).toContain('/: Filter');
+    expect(output).toContain('s:');
+    expect(output).toContain('r:');
+    expect(output).toContain('?:');
+    expect(output).toContain('q:');
   });
 
   it('should show different message for help view', () => {
@@ -26,7 +30,10 @@ describe('Footer', () => {
     const { lastFrame } = render(<Footer view="settings" />);
 
     // Settings view shows same shortcuts as home for now
-    expect(lastFrame()).toContain('Navigate');
+    const output = lastFrame();
+    expect(output).toContain('↑/↓');
+    expect(output).toContain('f:');
+    expect(output).toContain('/');
   });
 
   it('should render keyboard shortcuts for detail view', () => {

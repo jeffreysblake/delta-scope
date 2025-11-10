@@ -33,8 +33,8 @@ Keyboard Shortcuts:
   /              Filter repos (fuzzy search)
   Escape         Clear filter, or return from detail view
   d              Show repo details
+  f              Toggle favorite (star)
   s              Cycle sort modes (name → status → recent → changes)
-  f              Toggle favorite (coming soon)
   r              Refresh all repos
   h              Home view (return from detail)
   ?              Show this help

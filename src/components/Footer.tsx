@@ -34,10 +34,10 @@ export const Footer: React.FC<FooterProps> = ({ view }) => {
       <Text dimColor>↑/↓: Navigate | </Text>
       <Text dimColor>Enter: Expand/Details | </Text>
       <Text dimColor>d: Details | </Text>
+      <Text dimColor>f: Favorite | </Text>
       <Text dimColor>/: Filter | </Text>
       <Text dimColor>s: Sort | </Text>
       <Text dimColor>r: Refresh | </Text>
-      <Text dimColor>h: Home | </Text>
       <Text dimColor>?: Help | </Text>
       <Text dimColor>q: Quit</Text>
     </Box>

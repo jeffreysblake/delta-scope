@@ -112,8 +112,8 @@ describe('Dashboard', () => {
 
     it('should render footer during loading', () => {
       const { lastFrame } = render(<Dashboard />);
-      expect(lastFrame()).toContain('Navigate');
-      expect(lastFrame()).toContain('Quit');
+      expect(lastFrame()).toContain('↑/↓');
+      expect(lastFrame()).toContain('q:');
     });
   });
 
@@ -413,7 +413,8 @@ describe('Dashboard', () => {
 
     it('should render Footer component', () => {
       const { lastFrame } = render(<Dashboard />);
-      expect(lastFrame()).toContain('Navigate');
+      expect(lastFrame()).toContain('↑/↓');
+      expect(lastFrame()).toContain('f:');
     });
 
     it('should render RepoList after loading', async () => {

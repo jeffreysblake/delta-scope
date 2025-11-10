@@ -340,6 +340,23 @@ export const Dashboard: React.FC = () => {
     if (input === 's') {
       cycleSortMode();
     }
+
+    if (input === 'f') {
+      // Toggle favorite for currently selected repo
+      if (currentNavItem && currentNavItem.type === 'repo') {
+        const group = groups[currentNavItem.groupIndex];
+        const repo = group?.repos[currentNavItem.repoIndex];
+        if (repo) {
+          configManager.toggleFavorite(repo.path);
+          // Update the repo in state to reflect the change
+          setRepos((prevRepos) =>
+            prevRepos.map((r) =>
+              r.path === repo.path ? { ...r, isFavorite: !r.isFavorite } : r
+            )
+          );
+        }
+      }
+    }
   });
 
   // Calculate stats
