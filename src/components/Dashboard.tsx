@@ -20,6 +20,7 @@ import { RepoList } from './RepoList.js';
 import { HelpView } from './HelpView.js';
 import { DebugPanel } from './DebugPanel.js';
 import { FilterInput } from './FilterInput.js';
+import { DetailView } from './DetailView.js';
 import { scanForRepos } from '../services/gitScanner.js';
 import { getMultipleRepoStatus } from '../services/gitStatus.js';
 import { configManager } from '../services/configManager.js';
@@ -38,6 +39,7 @@ export const Dashboard: React.FC = () => {
   const [sortMode, setSortMode] = useState<SortMode>('status');
   const [filterActive, setFilterActive] = useState(false);
   const [filterQuery, setFilterQuery] = useState('');
+  const [selectedRepo, setSelectedRepo] = useState<GitRepo | null>(null);
   const [lastKeypress, setLastKeypress] = useState<string>('');
   const [renderTime, setRenderTime] = useState<number>(0);
 
@@ -258,6 +260,15 @@ export const Dashboard: React.FC = () => {
       return;
     }
 
+    // Detail view - Escape or h returns to home
+    if (view === 'detail') {
+      if (key.escape || input === 'h') {
+        setView('home');
+        setSelectedRepo(null);
+      }
+      return;
+    }
+
     // Help view - any key returns to home
     if (view === 'help') {
       setView('home');
@@ -284,6 +295,11 @@ export const Dashboard: React.FC = () => {
       return;
     }
 
+    if (input === 'h') {
+      setView('home');
+      return;
+    }
+
     // Navigation
     if (key.upArrow || input === 'k') {
       navigateUp();
@@ -298,14 +314,32 @@ export const Dashboard: React.FC = () => {
       if (currentNavItem && currentNavItem.type === 'group-header') {
         toggleGroup(currentNavItem.groupIndex);
       }
-      // If we're on a repo, do nothing for now (detail view will go here)
+      // Show detail view if we're on a repo
+      else if (currentNavItem && currentNavItem.type === 'repo') {
+        const group = groups[currentNavItem.groupIndex];
+        const repo = group?.repos[currentNavItem.repoIndex];
+        if (repo) {
+          setSelectedRepo(repo);
+          setView('detail');
+        }
+      }
+    }
+
+    if (input === 'd') {
+      // Show detail view for currently selected repo
+      if (currentNavItem && currentNavItem.type === 'repo') {
+        const group = groups[currentNavItem.groupIndex];
+        const repo = group?.repos[currentNavItem.repoIndex];
+        if (repo) {
+          setSelectedRepo(repo);
+          setView('detail');
+        }
+      }
     }
 
     if (input === 's') {
       cycleSortMode();
     }
-
-    // TODO: Implement other shortcuts (filter, favorite, detail, etc.)
   });
 
   // Calculate stats
@@ -367,6 +401,8 @@ export const Dashboard: React.FC = () => {
         )}
 
         {view === 'help' && <HelpView />}
+
+        {view === 'detail' && selectedRepo && <DetailView repo={selectedRepo} />}
       </Box>
 
       <Footer view={view} />

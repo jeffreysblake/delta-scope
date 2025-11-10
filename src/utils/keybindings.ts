@@ -29,14 +29,14 @@ export const KEYBINDINGS = {
 export const HELP_TEXT = `
 Keyboard Shortcuts:
   ↑/↓ or k/j     Navigate repos
-  Enter          Expand/collapse group
+  Enter          Expand/collapse group, or show repo details
   /              Filter repos (fuzzy search)
-  Escape         Clear filter
+  Escape         Clear filter, or return from detail view
+  d              Show repo details
   s              Cycle sort modes (name → status → recent → changes)
   f              Toggle favorite (coming soon)
-  d              Show repo details (coming soon)
   r              Refresh all repos
-  h              Home view
+  h              Home view (return from detail)
   ?              Show this help
   c              Settings (coming soon)
   q              Quit

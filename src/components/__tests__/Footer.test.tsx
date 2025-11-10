@@ -32,7 +32,8 @@ describe('Footer', () => {
   it('should render keyboard shortcuts for detail view', () => {
     const { lastFrame } = render(<Footer view="detail" />);
 
-    // Detail view shows same shortcuts as home for now
-    expect(lastFrame()).toContain('Navigate');
+    // Detail view shows back shortcut
+    expect(lastFrame()).toContain('Back');
+    expect(lastFrame()).toContain('Esc/h');
   });
 });
