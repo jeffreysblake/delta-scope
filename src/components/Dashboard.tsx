@@ -22,10 +22,14 @@ import { DebugPanel } from './DebugPanel.js';
 import { FilterInput } from './FilterInput.js';
 import { DetailView } from './DetailView.js';
 import { SettingsView } from './SettingsView.js';
+import { AgentView } from './AgentView.js';
 import { scanForRepos } from '../services/gitScanner.js';
 import { getMultipleRepoStatus } from '../services/gitStatus.js';
 import { configManager } from '../services/configManager.js';
 import { getDatabaseService, closeDatabaseService } from '../services/database.js';
+import { getAIAgentService } from '../services/aiAgent.js';
+import { buildAgentContext } from '../services/agentContext.js';
+import type { AgentResponse, AgentStatus } from '../types/agent.js';
 
 const isDev = process.env.DEV === 'true';
 
@@ -45,6 +49,41 @@ export const Dashboard: React.FC = () => {
   const [lastKeypress, setLastKeypress] = useState<string>('');
   const [renderTime, setRenderTime] = useState<number>(0);
   const [searchSuggestions, setSearchSuggestions] = useState<string[]>([]);
+  const [agentResponse, setAgentResponse] = useState<AgentResponse | null>(null);
+  const [agentLoading, setAgentLoading] = useState(false);
+  const [agentError, setAgentError] = useState<string | null>(null);
+  const [agentStatus, setAgentStatus] = useState<AgentStatus>('not_configured');
+
+  /**
+   * Run AI agent analysis
+   */
+  const runAgentAnalysis = useCallback(async (reposToAnalyze: GitRepo[]) => {
+    const config = configManager.get();
+
+    if (!config.ai?.enabled || !config.ai?.apiKey) {
+      return;
+    }
+
+    setAgentLoading(true);
+    setAgentError(null);
+
+    try {
+      const agent = getAIAgentService(config.ai);
+      setAgentStatus(agent.getStatus());
+
+      const context = buildAgentContext(reposToAnalyze, config);
+      const response = await agent.analyze(context);
+
+      setAgentResponse(response);
+      setAgentStatus(agent.getStatus());
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setAgentError(errorMessage);
+      setAgentStatus('error');
+    } finally {
+      setAgentLoading(false);
+    }
+  }, []);
 
   /**
    * Load all repositories
@@ -64,12 +103,21 @@ export const Dashboard: React.FC = () => {
       // Calculate frecency scores after loading repos
       const db = getDatabaseService();
       db.calculateFrecency();
+
+      // Run AI analysis if auto-analyze is enabled
+      if (config.ai?.enabled && config.ai?.autoAnalyze && config.ai?.apiKey) {
+        runAgentAnalysis(repoStatuses);
+      } else if (config.ai) {
+        // Update agent status based on config
+        const agent = getAIAgentService(config.ai);
+        setAgentStatus(agent.getStatus());
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [runAgentAnalysis]);
 
   /**
    * Handle config changes from settings view
@@ -333,6 +381,14 @@ export const Dashboard: React.FC = () => {
       return;
     }
 
+    // Agent view - Escape or i returns to home
+    if (view === 'agent') {
+      if (key.escape || input === 'i') {
+        setView('home');
+      }
+      return;
+    }
+
     // Global shortcuts
     if (input === 'q') {
       process.exit(0);
@@ -360,6 +416,16 @@ export const Dashboard: React.FC = () => {
 
     if (input === 'h') {
       setView('home');
+      return;
+    }
+
+    if (input === 'i') {
+      // Trigger manual analysis if repos are loaded and AI is configured
+      const config = configManager.get();
+      if (config.ai?.enabled && config.ai?.apiKey && repos.length > 0) {
+        runAgentAnalysis(repos);
+      }
+      setView('agent');
       return;
     }
 
@@ -458,6 +524,8 @@ export const Dashboard: React.FC = () => {
         lastRefresh={lastRefresh}
         view={view}
         currentRepoName={selectedRepo?.name}
+        agentStatus={agentStatus}
+        agentEnabled={configManager.get().ai?.enabled || false}
       />
 
       {/* Main content area */}
@@ -503,6 +571,22 @@ export const Dashboard: React.FC = () => {
         )}
 
         {view === 'detail' && selectedRepo && <DetailView repo={selectedRepo} />}
+
+        {view === 'agent' && (
+          <AgentView
+            response={agentResponse}
+            isLoading={agentLoading}
+            error={agentError}
+            onDismiss={(recId) => {
+              // TODO: Implement dismiss functionality
+              console.log('Dismiss recommendation:', recId);
+            }}
+            onExecute={(recId, actionId) => {
+              // TODO: Implement execute functionality
+              console.log('Execute action:', recId, actionId);
+            }}
+          />
+        )}
       </Box>
 
       <Footer view={view} />

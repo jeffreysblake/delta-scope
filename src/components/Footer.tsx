@@ -40,16 +40,31 @@ export const Footer: React.FC<FooterProps> = ({ view }) => {
     );
   }
 
+  if (view === 'agent') {
+    return (
+      <Box borderStyle="single" borderColor="cyan" paddingX={1}>
+        <Text dimColor>↑/↓/k/j: Navigate | </Text>
+        <Text dimColor>Enter/Space: Expand | </Text>
+        <Text dimColor>e: Execute | </Text>
+        <Text dimColor>x: Dismiss | </Text>
+        <Text dimColor>Esc/i: Close | </Text>
+        <Text dimColor>?: Help | </Text>
+        <Text dimColor>q: Quit</Text>
+      </Box>
+    );
+  }
+
   return (
     <Box borderStyle="single" borderColor="cyan" paddingX={1}>
       <Text dimColor>↑/↓: Navigate | </Text>
-      <Text dimColor>Enter: Expand/Details | </Text>
+      <Text dimColor>Enter: Expand | </Text>
       <Text dimColor>d: Details | </Text>
-      <Text dimColor>f: Favorite | </Text>
+      <Text dimColor>f: Fav | </Text>
       <Text dimColor>/: Filter | </Text>
       <Text dimColor>s: Sort | </Text>
       <Text dimColor>r: Refresh | </Text>
-      <Text dimColor>c: Settings | </Text>
+      <Text dimColor>i: AI | </Text>
+      <Text dimColor>c: Config | </Text>
       <Text dimColor>?: Help | </Text>
       <Text dimColor>q: Quit</Text>
     </Box>

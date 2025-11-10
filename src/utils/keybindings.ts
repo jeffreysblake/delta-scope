@@ -36,6 +36,7 @@ Keyboard Shortcuts:
   f              Toggle favorite (star)
   s              Cycle sort modes (status → name → recent → changes → frecency)
   r              Refresh all repos
+  i              AI Insights (agent recommendations)
   h              Home view (return from detail)
   c              Settings (view configuration)
   ?              Show this help
@@ -43,4 +44,8 @@ Keyboard Shortcuts:
 
 Frecency: A smart sorting algorithm that considers both frequency and recency
           of your interactions with repositories.
+
+AI Agent: When enabled, the AI agent analyzes your repositories and provides
+          intelligent recommendations for cleanup, workflow optimization, and
+          health improvements. Configure in Settings (c).
 `;
