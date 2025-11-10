@@ -7,12 +7,10 @@ describe('Footer', () => {
   it('should render keyboard shortcuts for home view', () => {
     const { lastFrame } = render(<Footer view="home" />);
 
+    // Only showing working shortcuts (removed Filter, Favorite, Details)
     expect(lastFrame()).toContain('Navigate');
     expect(lastFrame()).toContain('Expand');
-    expect(lastFrame()).toContain('Filter');
     expect(lastFrame()).toContain('Sort');
-    expect(lastFrame()).toContain('Favorite');
-    expect(lastFrame()).toContain('Details');
     expect(lastFrame()).toContain('Refresh');
     expect(lastFrame()).toContain('Help');
     expect(lastFrame()).toContain('Quit');

@@ -19,20 +19,13 @@ export const Footer: React.FC<FooterProps> = ({ view }) => {
   }
 
   return (
-    <Box borderStyle="single" borderColor="cyan" flexDirection="column" paddingX={1}>
-      <Box>
-        <Text dimColor>↑/↓: Navigate | </Text>
-        <Text dimColor>Enter: Expand | </Text>
-        <Text dimColor>/: Filter | </Text>
-        <Text dimColor>s: Sort | </Text>
-        <Text dimColor>f: Favorite</Text>
-      </Box>
-      <Box>
-        <Text dimColor>d: Details | </Text>
-        <Text dimColor>r: Refresh | </Text>
-        <Text dimColor>?: Help | </Text>
-        <Text dimColor>q: Quit</Text>
-      </Box>
+    <Box borderStyle="single" borderColor="cyan" paddingX={1}>
+      <Text dimColor>↑/↓: Navigate | </Text>
+      <Text dimColor>Enter: Expand | </Text>
+      <Text dimColor>s: Sort | </Text>
+      <Text dimColor>r: Refresh | </Text>
+      <Text dimColor>?: Help | </Text>
+      <Text dimColor>q: Quit</Text>
     </Box>
   );
 };
