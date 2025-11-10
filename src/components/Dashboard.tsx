@@ -2,8 +2,8 @@
  * Main Dashboard component - router and state manager
  */
 
-import React, { useState, useEffect } from 'react';
-import { Box, useInput, Text } from 'ink';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Box, useInput, Text, type Key } from 'ink';
 import Spinner from 'ink-spinner';
 import type { GitRepo, RepoGroup, View, SortMode, DebugInfo } from '../types/index.js';
 import { Header } from './Header.js';
@@ -34,13 +34,13 @@ export const Dashboard: React.FC = () => {
   // Load repos on mount
   useEffect(() => {
     loadRepos();
-  }, []);
+  }, [loadRepos]);
 
   // Group repos whenever they change
   useEffect(() => {
     const grouped = groupRepos(repos);
     setGroups(grouped);
-  }, [repos, sortMode]);
+  }, [repos, sortMode, groupRepos]);
 
   // Track render time for debug
   useEffect(() => {
@@ -54,7 +54,7 @@ export const Dashboard: React.FC = () => {
   /**
    * Load all repositories
    */
-  const loadRepos = async () => {
+  const loadRepos = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
@@ -70,12 +70,39 @@ export const Dashboard: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  /**
+   * Sort repos based on mode
+   */
+  const sortRepos = useCallback((reposToSort: GitRepo[], mode: SortMode): GitRepo[] => {
+    const sorted = [...reposToSort];
+
+    switch (mode) {
+      case 'name':
+        return sorted.sort((a, b) => a.name.localeCompare(b.name));
+      case 'status':
+        return sorted; // Already grouped by status
+      case 'recent':
+        return sorted.sort((a, b) => {
+          if (!a.lastCommitDate) return 1;
+          if (!b.lastCommitDate) return -1;
+          return b.lastCommitDate.getTime() - a.lastCommitDate.getTime();
+        });
+      case 'changes':
+        return sorted.sort(
+          (a, b) =>
+            b.linesAdded + b.linesDeleted - (a.linesAdded + a.linesDeleted)
+        );
+      default:
+        return sorted;
+    }
+  }, []);
 
   /**
    * Group repos by status
    */
-  const groupRepos = (allRepos: GitRepo[]): RepoGroup[] => {
+  const groupRepos = useCallback((allRepos: GitRepo[]): RepoGroup[] => {
     const grouped: Record<string, GitRepo[]> = {
       clean: [],
       uncommitted: [],
@@ -99,34 +126,7 @@ export const Dashboard: React.FC = () => {
       { status: 'unpushed', repos: grouped.unpushed, expanded: false },
       { status: 'clean', repos: grouped.clean, expanded: false },
     ];
-  };
-
-  /**
-   * Sort repos based on mode
-   */
-  const sortRepos = (reposToSort: GitRepo[], mode: SortMode): GitRepo[] => {
-    const sorted = [...reposToSort];
-
-    switch (mode) {
-      case 'name':
-        return sorted.sort((a, b) => a.name.localeCompare(b.name));
-      case 'status':
-        return sorted; // Already grouped by status
-      case 'recent':
-        return sorted.sort((a, b) => {
-          if (!a.lastCommitDate) return 1;
-          if (!b.lastCommitDate) return -1;
-          return b.lastCommitDate.getTime() - a.lastCommitDate.getTime();
-        });
-      case 'changes':
-        return sorted.sort(
-          (a, b) =>
-            b.linesAdded + b.linesDeleted - (a.linesAdded + a.linesDeleted)
-        );
-      default:
-        return sorted;
-    }
-  };
+  }, [sortMode, sortRepos]);
 
   /**
    * Toggle group expansion
@@ -168,7 +168,7 @@ export const Dashboard: React.FC = () => {
   /**
    * Keyboard input handler
    */
-  useInput((input: string, key: any) => {
+  useInput((input: string, key: Key) => {
     if (isDev) {
       setLastKeypress(input || JSON.stringify(key));
     }
