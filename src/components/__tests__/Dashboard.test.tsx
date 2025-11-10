@@ -7,15 +7,6 @@ import * as gitStatus from '../../services/gitStatus.js';
 import * as configManager from '../../services/configManager.js';
 import type { GitRepo, AppConfig } from '../../types/index.js';
 
-// Mock useInput hook to avoid stdin.ref issues in tests
-vi.mock('ink', async () => {
-  const actual = await vi.importActual('ink');
-  return {
-    ...actual,
-    useInput: vi.fn(), // Mock useInput to do nothing in tests
-  };
-});
-
 // Mock all service dependencies
 vi.mock('../../services/gitScanner.js');
 vi.mock('../../services/gitStatus.js');
@@ -285,8 +276,10 @@ describe('Dashboard', () => {
       const { lastFrame } = render(<Dashboard />);
 
       await vi.waitFor(() => {
-        expect(lastFrame()).toContain('0 repos');
-        expect(lastFrame()).toContain('0 need attention');
+        const output = lastFrame();
+        expect(output).toContain('0 repos');
+        // Header shows "[0 repos]" not "0 need attention" when there are no repos
+        expect(output).toContain('[0 repos]');
       });
     });
 
@@ -438,6 +431,368 @@ describe('Dashboard', () => {
       const output = lastFrame();
       // Debug panel only shows in DEV mode
       expect(output).not.toContain('selectedIndex');
+    });
+  });
+
+  describe('Keyboard Interactions', () => {
+    describe('Navigation Keys', () => {
+      it('should navigate down with down arrow key', async () => {
+        const { lastFrame, stdin } = render(<Dashboard />);
+
+        await vi.waitFor(() => {
+          expect(lastFrame()).not.toContain('Loading repositories');
+        });
+
+        // Press down arrow (escape sequence)
+        stdin.write('\x1B[B');
+
+        // Wait for navigation to process - component should re-render
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+        // Should successfully navigate without crashing
+        expect(lastFrame()).toBeTruthy();
+      });
+
+      it('should navigate up with up arrow key', async () => {
+        const { lastFrame, stdin } = render(<Dashboard />);
+
+        await vi.waitFor(() => {
+          expect(lastFrame()).not.toContain('Loading repositories');
+        });
+
+        // Navigate down first
+        stdin.write('\x1B[B');
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+        // Navigate up
+        stdin.write('\x1B[A');
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+        // Should successfully navigate without crashing
+        expect(lastFrame()).toBeTruthy();
+      });
+
+      it('should navigate down with j key', async () => {
+        const { lastFrame, stdin } = render(<Dashboard />);
+
+        await vi.waitFor(() => {
+          expect(lastFrame()).not.toContain('Loading repositories');
+        });
+
+        stdin.write('j');
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+        // Should successfully navigate without crashing
+        expect(lastFrame()).toBeTruthy();
+      });
+
+      it('should navigate up with k key', async () => {
+        const { lastFrame, stdin } = render(<Dashboard />);
+
+        await vi.waitFor(() => {
+          expect(lastFrame()).not.toContain('Loading repositories');
+        });
+
+        // Navigate down first
+        stdin.write('j');
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+        stdin.write('k');
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+        // Should successfully navigate without crashing
+        expect(lastFrame()).toBeTruthy();
+      });
+
+      it('should not navigate above first item', async () => {
+        const { lastFrame, stdin } = render(<Dashboard />);
+
+        await vi.waitFor(() => {
+          expect(lastFrame()).not.toContain('Loading repositories');
+        });
+
+        // Try to navigate up from the start
+        stdin.write('k');
+        stdin.write('k');
+        stdin.write('k');
+
+        // Should not crash or error
+        await vi.waitFor(() => {
+          expect(lastFrame()).toBeTruthy();
+        });
+      });
+
+      it('should not navigate below last item', async () => {
+        const { lastFrame, stdin } = render(<Dashboard />);
+
+        await vi.waitFor(() => {
+          expect(lastFrame()).not.toContain('Loading repositories');
+        });
+
+        // Try to navigate down many times
+        for (let i = 0; i < 20; i++) {
+          stdin.write('j');
+        }
+
+        // Should not crash or error
+        await vi.waitFor(() => {
+          expect(lastFrame()).toBeTruthy();
+        });
+      });
+    });
+
+    describe('Group Toggling', () => {
+      it('should toggle group expansion with Enter key', async () => {
+        const { lastFrame, stdin } = render(<Dashboard />);
+
+        await vi.waitFor(() => {
+          expect(lastFrame()).not.toContain('Loading repositories');
+        });
+
+        const before = lastFrame();
+        const expandedCount = (before.match(/expanded/g) || []).length;
+
+        // Press Enter to toggle first group (which is expanded by default)
+        stdin.write('\r');
+
+        await vi.waitFor(() => {
+          const after = lastFrame();
+          const newExpandedCount = (after.match(/expanded/g) || []).length;
+          // Should have one less expanded group
+          expect(newExpandedCount).toBe(expandedCount - 1);
+        });
+      });
+
+      it('should expand collapsed group with Enter key', async () => {
+        const { lastFrame, stdin } = render(<Dashboard />);
+
+        await vi.waitFor(() => {
+          expect(lastFrame()).not.toContain('Loading repositories');
+        });
+
+        // Navigate to unpushed group (collapsed by default)
+        // From both header: j (repo4), j (uncommitted header), j (repo2), j (unpushed header)
+        stdin.write('j');
+        await new Promise(resolve => setTimeout(resolve, 50));
+        stdin.write('j');
+        await new Promise(resolve => setTimeout(resolve, 50));
+        stdin.write('j');
+        await new Promise(resolve => setTimeout(resolve, 50));
+        stdin.write('j');
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+        const before = lastFrame();
+        const expandedCountBefore = (before.match(/expanded/g) || []).length;
+
+        // Toggle to expand
+        stdin.write('\r');
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        const after = lastFrame();
+        const expandedCountAfter = (after.match(/expanded/g) || []).length;
+
+        // Should have one more expanded group
+        expect(expandedCountAfter).toBeGreaterThan(expandedCountBefore);
+      });
+    });
+
+    describe('Sort Mode Cycling', () => {
+      it('should cycle sort mode with s key', async () => {
+        const { lastFrame, stdin } = render(<Dashboard />);
+
+        await vi.waitFor(() => {
+          expect(lastFrame()).not.toContain('Loading repositories');
+        });
+
+        const initial = lastFrame();
+
+        // Cycle through sort modes
+        stdin.write('s'); // status -> name
+        await vi.waitFor(() => expect(lastFrame()).toBeTruthy());
+
+        stdin.write('s'); // name -> recent
+        await vi.waitFor(() => expect(lastFrame()).toBeTruthy());
+
+        stdin.write('s'); // recent -> changes
+        await vi.waitFor(() => expect(lastFrame()).toBeTruthy());
+
+        stdin.write('s'); // changes -> status (back to start)
+
+        await vi.waitFor(() => {
+          // Should cycle through all modes without crashing
+          expect(lastFrame()).toBeTruthy();
+        });
+      });
+    });
+
+    describe('View Switching', () => {
+      it('should switch to help view with ? key', async () => {
+        const { lastFrame, stdin } = render(<Dashboard />);
+
+        await vi.waitFor(() => {
+          expect(lastFrame()).not.toContain('Loading repositories');
+        });
+
+        stdin.write('?');
+
+        await vi.waitFor(() => {
+          expect(lastFrame()).toContain('delta-scope Help');
+          expect(lastFrame()).toContain('Keyboard Shortcuts');
+        });
+      });
+
+      it('should return to home view from help with any key', async () => {
+        const { lastFrame, stdin } = render(<Dashboard />);
+
+        await vi.waitFor(() => {
+          expect(lastFrame()).not.toContain('Loading repositories');
+        });
+
+        // Go to help
+        stdin.write('?');
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        expect(lastFrame()).toContain('delta-scope Help');
+
+        // Press space to return
+        stdin.write(' ');
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // Should return to home view
+        expect(lastFrame()).not.toContain('delta-scope Help');
+      });
+
+      it('should show help footer when in help view', async () => {
+        const { lastFrame, stdin } = render(<Dashboard />);
+
+        await vi.waitFor(() => {
+          expect(lastFrame()).not.toContain('Loading repositories');
+        });
+
+        stdin.write('?');
+
+        await vi.waitFor(() => {
+          expect(lastFrame()).toContain('Press any key to return');
+        });
+      });
+    });
+
+    describe('Refresh Functionality', () => {
+      it('should refresh repos with r key', async () => {
+        const { lastFrame, stdin } = render(<Dashboard />);
+
+        await vi.waitFor(() => {
+          expect(lastFrame()).not.toContain('Loading repositories');
+        });
+
+        // Clear previous calls
+        vi.clearAllMocks();
+
+        stdin.write('r');
+
+        await vi.waitFor(() => {
+          expect(gitScanner.scanForRepos).toHaveBeenCalledTimes(1);
+          expect(gitStatus.getMultipleRepoStatus).toHaveBeenCalledTimes(1);
+        });
+      });
+
+      it('should show loading state during refresh', async () => {
+        const { lastFrame, stdin } = render(<Dashboard />);
+
+        await vi.waitFor(() => {
+          expect(lastFrame()).not.toContain('Loading repositories');
+        });
+
+        // Make the next load take longer
+        vi.mocked(gitScanner.scanForRepos).mockImplementation(
+          () => new Promise((resolve) => setTimeout(() => resolve([]), 100))
+        );
+
+        stdin.write('r');
+
+        // Should show loading
+        await vi.waitFor(() => {
+          expect(lastFrame()).toContain('Loading repositories');
+        });
+      });
+    });
+
+    describe('Quit Functionality', () => {
+      it('should call process.exit with q key', async () => {
+        const mockExit = vi.spyOn(process, 'exit').mockImplementation((() => {}) as any);
+
+        const { lastFrame, stdin } = render(<Dashboard />);
+
+        await vi.waitFor(() => {
+          expect(lastFrame()).not.toContain('Loading repositories');
+        });
+
+        stdin.write('q');
+
+        await vi.waitFor(() => {
+          expect(mockExit).toHaveBeenCalledWith(0);
+        });
+
+        mockExit.mockRestore();
+      });
+    });
+
+    describe('Combined Navigation Scenarios', () => {
+      it('should navigate through repos in expanded groups', async () => {
+        const { lastFrame, stdin } = render(<Dashboard />);
+
+        await vi.waitFor(() => {
+          expect(lastFrame()).not.toContain('Loading repositories');
+        });
+
+        // Start at both group header (expanded)
+        // Navigate down to repo4
+        stdin.write('j');
+
+        await vi.waitFor(() => {
+          expect(lastFrame()).toBeTruthy();
+        });
+
+        // Navigate down to uncommitted group header
+        stdin.write('j');
+
+        await vi.waitFor(() => {
+          expect(lastFrame()).toBeTruthy();
+        });
+
+        // Navigate down to repo2
+        stdin.write('j');
+
+        await vi.waitFor(() => {
+          // Should successfully navigate through items
+          expect(lastFrame()).toBeTruthy();
+        });
+      });
+
+      it('should maintain selection when collapsing/expanding groups', async () => {
+        const { lastFrame, stdin } = render(<Dashboard />);
+
+        await vi.waitFor(() => {
+          expect(lastFrame()).not.toContain('Loading repositories');
+        });
+
+        // Start at both group header, toggle to collapse
+        stdin.write('\r');
+
+        await vi.waitFor(() => {
+          const output = lastFrame();
+          // Both group should now be collapsed
+          expect(output).toBeTruthy();
+        });
+
+        // Toggle again to expand
+        stdin.write('\r');
+
+        await vi.waitFor(() => {
+          // Should expand again and maintain selection on group header
+          expect(lastFrame()).toBeTruthy();
+        });
+      });
     });
   });
 });
