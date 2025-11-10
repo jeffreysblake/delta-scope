@@ -9,7 +9,7 @@ import { homedir } from 'os';
 import { existsSync, mkdirSync } from 'fs';
 
 // Database schema version for migrations
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 interface AccessHistoryRecord {
   id?: number;
@@ -119,6 +119,25 @@ export class DatabaseService {
 
       // Record schema version
       this.db.prepare('INSERT INTO schema_version (version, applied_at) VALUES (?, ?)').run(1, Date.now());
+    }
+
+    if (fromVersion < 2) {
+      // Migration 2: Context snapshots for AI agent
+      this.db.exec(`
+        -- Context snapshots for tracking agent analysis history
+        CREATE TABLE IF NOT EXISTS context_snapshots (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          timestamp INTEGER NOT NULL,
+          context_json TEXT NOT NULL,
+          repo_count INTEGER NOT NULL,
+          user_action TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_snapshot_timestamp ON context_snapshots(timestamp);
+      `);
+
+      // Record schema version
+      this.db.prepare('INSERT INTO schema_version (version, applied_at) VALUES (?, ?)').run(2, Date.now());
     }
   }
 
@@ -268,6 +287,9 @@ export class DatabaseService {
 
     this.db.prepare('DELETE FROM access_history WHERE accessed_at < ?').run(ninetyDaysAgo);
     this.db.prepare('DELETE FROM search_history WHERE timestamp < ?').run(ninetyDaysAgo);
+
+    // Also cleanup old snapshots (keep last 30 days)
+    this.cleanupOldSnapshots();
   }
 
   /**
@@ -297,6 +319,55 @@ export class DatabaseService {
       lastAccessed: lastRow.last,
       actions,
     };
+  }
+
+  /**
+   * Save a context snapshot
+   */
+  saveContextSnapshot(contextJson: string, repoCount: number, userAction: string | null = null): number {
+    const stmt = this.db.prepare(`
+      INSERT INTO context_snapshots (timestamp, context_json, repo_count, user_action)
+      VALUES (?, ?, ?, ?)
+    `);
+
+    const result = stmt.run(Date.now(), contextJson, repoCount, userAction);
+    return result.lastInsertRowid as number;
+  }
+
+  /**
+   * Get the most recent context snapshot
+   */
+  getLatestContextSnapshot(): { id: number; timestamp: number; context_json: string; repo_count: number; user_action: string | null } | null {
+    const stmt = this.db.prepare(`
+      SELECT id, timestamp, context_json, repo_count, user_action
+      FROM context_snapshots
+      ORDER BY timestamp DESC
+      LIMIT 1
+    `);
+
+    return stmt.get() as { id: number; timestamp: number; context_json: string; repo_count: number; user_action: string | null } | null;
+  }
+
+  /**
+   * Get context snapshots within a time range
+   */
+  getContextSnapshots(startTime: number, endTime: number): Array<{ id: number; timestamp: number; context_json: string; repo_count: number; user_action: string | null }> {
+    const stmt = this.db.prepare(`
+      SELECT id, timestamp, context_json, repo_count, user_action
+      FROM context_snapshots
+      WHERE timestamp >= ? AND timestamp <= ?
+      ORDER BY timestamp DESC
+    `);
+
+    return stmt.all(startTime, endTime) as Array<{ id: number; timestamp: number; context_json: string; repo_count: number; user_action: string | null }>;
+  }
+
+  /**
+   * Clean up old context snapshots (keep last 30 days)
+   */
+  cleanupOldSnapshots(): void {
+    const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+    this.db.prepare('DELETE FROM context_snapshots WHERE timestamp < ?').run(thirtyDaysAgo);
   }
 
   /**

@@ -25,6 +25,18 @@ export interface RepoGroup {
   expanded: boolean;
 }
 
+export interface AIConfig {
+  enabled: boolean;
+  provider: 'anthropic' | 'openai' | 'local';
+  model: string;
+  apiKey?: string;
+  endpoint?: string; // For local models
+  timeout: number;
+  maxRetries: number;
+  autoAnalyze: boolean; // Run analysis on refresh
+  maxRecommendations: number;
+}
+
 export interface AppConfig {
   basePaths: string[];
   excludePatterns: string[];
@@ -33,6 +45,7 @@ export interface AppConfig {
   favorites: string[]; // repo paths
   maxDepth: number; // how deep to search for .git directories
   showHidden: boolean; // show hidden directories
+  ai: AIConfig;
 }
 
 export type View = 'home' | 'detail' | 'settings' | 'help';

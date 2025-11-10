@@ -26,6 +26,15 @@ const DEFAULT_CONFIG: AppConfig = {
   favorites: [],
   maxDepth: 5,
   showHidden: false,
+  ai: {
+    enabled: false,
+    provider: 'anthropic',
+    model: 'claude-sonnet-4-5-20250929',
+    timeout: 30000,
+    maxRetries: 3,
+    autoAnalyze: false,
+    maxRecommendations: 5,
+  },
 };
 
 class ConfigManager {
@@ -69,6 +78,45 @@ class ConfigManager {
         },
         showHidden: {
           type: 'boolean',
+        },
+        ai: {
+          type: 'object',
+          properties: {
+            enabled: {
+              type: 'boolean',
+            },
+            provider: {
+              type: 'string',
+              enum: ['anthropic', 'openai', 'local'],
+            },
+            model: {
+              type: 'string',
+            },
+            apiKey: {
+              type: 'string',
+            },
+            endpoint: {
+              type: 'string',
+            },
+            timeout: {
+              type: 'number',
+              minimum: 1000,
+            },
+            maxRetries: {
+              type: 'number',
+              minimum: 0,
+              maximum: 10,
+            },
+            autoAnalyze: {
+              type: 'boolean',
+            },
+            maxRecommendations: {
+              type: 'number',
+              minimum: 1,
+              maximum: 20,
+            },
+          },
+          required: ['enabled', 'provider', 'model', 'timeout', 'maxRetries', 'autoAnalyze', 'maxRecommendations'],
         },
       },
     });
