@@ -2,10 +2,17 @@
  * Main Dashboard component - router and state manager
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Box, useInput, Text, type Key } from 'ink';
 import Spinner from 'ink-spinner';
 import type { GitRepo, RepoGroup, View, SortMode, DebugInfo } from '../types/index.js';
+
+/**
+ * Navigation item in flattened list
+ */
+type NavItem =
+  | { type: 'group-header'; groupIndex: number }
+  | { type: 'repo'; groupIndex: number; repoIndex: number };
 import { Header } from './Header.js';
 import { Footer } from './Footer.js';
 import { RepoList } from './RepoList.js';
@@ -25,8 +32,7 @@ export const Dashboard: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
-  const [selectedGroupIndex, setSelectedGroupIndex] = useState(0);
-  const [selectedRepoIndex] = useState(0);
+  const [selectedNavIndex, setSelectedNavIndex] = useState(0);
   const [sortMode, setSortMode] = useState<SortMode>('status');
   const [lastKeypress, setLastKeypress] = useState<string>('');
   const [renderTime, setRenderTime] = useState<number>(0);
@@ -129,31 +135,79 @@ export const Dashboard: React.FC = () => {
   }, [sortMode, sortRepos]);
 
   /**
+   * Build flattened navigation list from groups
+   * This creates a linear list of all navigable items:
+   * - Group headers (always visible)
+   * - Repos within expanded groups
+   */
+  const navItems = useMemo((): NavItem[] => {
+    const items: NavItem[] = [];
+    groups.forEach((group, groupIndex) => {
+      // Always add group header
+      items.push({ type: 'group-header', groupIndex });
+      // Add repos if group is expanded
+      if (group.expanded) {
+        group.repos.forEach((_, repoIndex) => {
+          items.push({ type: 'repo', groupIndex, repoIndex });
+        });
+      }
+    });
+    return items;
+  }, [groups]);
+
+  /**
+   * Get current selection info from nav index
+   */
+  const currentNavItem = navItems[selectedNavIndex] || navItems[0];
+  const selectedGroupIndex = currentNavItem?.groupIndex ?? 0;
+  const selectedRepoIndex = currentNavItem?.type === 'repo' ? currentNavItem.repoIndex : -1;
+
+  /**
    * Toggle group expansion
    */
   const toggleGroup = (groupIndex: number) => {
-    setGroups((prev) =>
-      prev.map((group, idx) =>
+    setGroups((prev) => {
+      const newGroups = prev.map((group, idx) =>
         idx === groupIndex ? { ...group, expanded: !group.expanded } : group
-      )
-    );
+      );
+
+      // When toggling, try to keep selection on the same group
+      // Find the new nav index for this group header
+      const newItems: NavItem[] = [];
+      newGroups.forEach((group, gIdx) => {
+        newItems.push({ type: 'group-header', groupIndex: gIdx });
+        if (group.expanded) {
+          group.repos.forEach((_, rIdx) => {
+            newItems.push({ type: 'repo', groupIndex: gIdx, repoIndex: rIdx });
+          });
+        }
+      });
+
+      // Find where the selected group header is in the new list
+      const newIndex = newItems.findIndex(
+        (item) => item.type === 'group-header' && item.groupIndex === groupIndex
+      );
+      if (newIndex !== -1) {
+        setSelectedNavIndex(newIndex);
+      }
+
+      return newGroups;
+    });
   };
 
   /**
-   * Navigate up
+   * Navigate up through flattened list
    */
-  const navigateUp = () => {
-    // TODO: Implement proper navigation between repos in expanded groups
-    setSelectedGroupIndex((prev) => Math.max(0, prev - 1));
-  };
+  const navigateUp = useCallback(() => {
+    setSelectedNavIndex((prev) => Math.max(0, prev - 1));
+  }, []);
 
   /**
-   * Navigate down
+   * Navigate down through flattened list
    */
-  const navigateDown = () => {
-    // TODO: Implement proper navigation between repos in expanded groups
-    setSelectedGroupIndex((prev) => Math.min(groups.length - 1, prev + 1));
-  };
+  const navigateDown = useCallback(() => {
+    setSelectedNavIndex((prev) => Math.min(navItems.length - 1, prev + 1));
+  }, [navItems.length]);
 
   /**
    * Cycle sort mode
@@ -204,7 +258,11 @@ export const Dashboard: React.FC = () => {
     }
 
     if (key.return) {
-      toggleGroup(selectedGroupIndex);
+      // Toggle group if we're on a group header
+      if (currentNavItem && currentNavItem.type === 'group-header') {
+        toggleGroup(currentNavItem.groupIndex);
+      }
+      // If we're on a repo, do nothing for now (detail view will go here)
     }
 
     if (input === 's') {
@@ -222,7 +280,7 @@ export const Dashboard: React.FC = () => {
   // Debug info
   const debugInfo: DebugInfo = {
     view,
-    selectedIndex: selectedGroupIndex,
+    selectedIndex: selectedNavIndex,
     repoCount: repos.length,
     filterActive: false,
     lastKeypress,

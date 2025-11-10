@@ -22,25 +22,32 @@ export const RepoList: React.FC<RepoListProps> = ({
 }) => {
   return (
     <Box flexDirection="column" paddingX={1}>
-      {groups.map((group, groupIndex) => (
-        <Box key={group.status} flexDirection="column" marginY={0}>
-          {/* Group header */}
-          <Box>
-            <StatusBadge status={group.status} showLabel count={group.repos.length} />
-            <Text dimColor> [{group.expanded ? 'expanded' : 'collapsed'}]</Text>
-          </Box>
+      {groups.map((group, groupIndex) => {
+        // Group header is selected if this group is selected and no repo is selected
+        const isGroupHeaderSelected = groupIndex === selectedGroupIndex && selectedRepoIndex === -1;
 
-          {/* Group items (if expanded) */}
-          {group.expanded && (
-            <Box flexDirection="column" paddingLeft={2}>
-              {group.repos.map((repo, repoIndex) => {
-                const isSelected = groupIndex === selectedGroupIndex && repoIndex === selectedRepoIndex;
-                return <RepoItem key={repo.path} repo={repo} isSelected={isSelected} />;
-              })}
+        return (
+          <Box key={group.status} flexDirection="column" marginY={0}>
+            {/* Group header */}
+            <Box>
+              <Text inverse={isGroupHeaderSelected}>
+                <StatusBadge status={group.status} showLabel count={group.repos.length} />
+                <Text dimColor> [{group.expanded ? 'expanded' : 'collapsed'}]</Text>
+              </Text>
             </Box>
-          )}
-        </Box>
-      ))}
+
+            {/* Group items (if expanded) */}
+            {group.expanded && (
+              <Box flexDirection="column" paddingLeft={2}>
+                {group.repos.map((repo, repoIndex) => {
+                  const isSelected = groupIndex === selectedGroupIndex && repoIndex === selectedRepoIndex;
+                  return <RepoItem key={repo.path} repo={repo} isSelected={isSelected} />;
+                })}
+              </Box>
+            )}
+          </Box>
+        );
+      })}
     </Box>
   );
 };
