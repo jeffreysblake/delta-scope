@@ -604,8 +604,6 @@ describe('Dashboard', () => {
           expect(lastFrame()).not.toContain('Loading repositories');
         });
 
-        const initial = lastFrame();
-
         // Cycle through sort modes
         stdin.write('s'); // status -> name
         await vi.waitFor(() => expect(lastFrame()).toBeTruthy());
@@ -719,7 +717,7 @@ describe('Dashboard', () => {
 
     describe('Quit Functionality', () => {
       it('should call process.exit with q key', async () => {
-        const mockExit = vi.spyOn(process, 'exit').mockImplementation((() => {}) as any);
+        const mockExit = vi.spyOn(process, 'exit').mockImplementation((() => {}) as never);
 
         const { lastFrame, stdin } = render(<Dashboard />);
 

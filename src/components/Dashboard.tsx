@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Box, useInput, Text, type Key } from 'ink';
 import Spinner from 'ink-spinner';
+import fuzzy from 'fuzzy';
 import type { GitRepo, RepoGroup, View, SortMode, DebugInfo } from '../types/index.js';
 
 /**
@@ -18,6 +19,7 @@ import { Footer } from './Footer.js';
 import { RepoList } from './RepoList.js';
 import { HelpView } from './HelpView.js';
 import { DebugPanel } from './DebugPanel.js';
+import { FilterInput } from './FilterInput.js';
 import { scanForRepos } from '../services/gitScanner.js';
 import { getMultipleRepoStatus } from '../services/gitStatus.js';
 import { configManager } from '../services/configManager.js';
@@ -34,6 +36,8 @@ export const Dashboard: React.FC = () => {
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [selectedNavIndex, setSelectedNavIndex] = useState(0);
   const [sortMode, setSortMode] = useState<SortMode>('status');
+  const [filterActive, setFilterActive] = useState(false);
+  const [filterQuery, setFilterQuery] = useState('');
   const [lastKeypress, setLastKeypress] = useState<string>('');
   const [renderTime, setRenderTime] = useState<number>(0);
 
@@ -86,6 +90,22 @@ export const Dashboard: React.FC = () => {
   }, []);
 
   /**
+   * Filter repos using fuzzy matching
+   */
+  const filterRepos = useCallback((reposToFilter: GitRepo[], query: string): GitRepo[] => {
+    if (!query.trim()) {
+      return reposToFilter;
+    }
+
+    // Fuzzy match against repo name and path
+    const results = fuzzy.filter(query, reposToFilter, {
+      extract: (repo) => `${repo.name} ${repo.path}`,
+    });
+
+    return results.map((result) => result.original);
+  }, []);
+
+  /**
    * Group repos by status
    */
   const groupRepos = useCallback((allRepos: GitRepo[]): RepoGroup[] => {
@@ -119,11 +139,12 @@ export const Dashboard: React.FC = () => {
     loadRepos();
   }, [loadRepos]);
 
-  // Group repos whenever they change
+  // Group repos whenever they change or filter changes
   useEffect(() => {
-    const grouped = groupRepos(repos);
+    const filtered = filterRepos(repos, filterQuery);
+    const grouped = groupRepos(filtered);
     setGroups(grouped);
-  }, [repos, sortMode, groupRepos]);
+  }, [repos, sortMode, filterQuery, groupRepos, filterRepos]);
 
   // Track render time for debug
   useEffect(() => {
@@ -227,6 +248,16 @@ export const Dashboard: React.FC = () => {
       setLastKeypress(input || JSON.stringify(key));
     }
 
+    // Filter is active - Escape closes it, other keys handled by TextInput
+    if (filterActive) {
+      if (key.escape) {
+        setFilterActive(false);
+        setFilterQuery('');
+      }
+      // TextInput handles all other input
+      return;
+    }
+
     // Help view - any key returns to home
     if (view === 'help') {
       setView('home');
@@ -245,6 +276,11 @@ export const Dashboard: React.FC = () => {
 
     if (input === 'r') {
       loadRepos();
+      return;
+    }
+
+    if (input === '/') {
+      setFilterActive(true);
       return;
     }
 
@@ -277,12 +313,15 @@ export const Dashboard: React.FC = () => {
     (r) => r.status === 'uncommitted' || r.status === 'both'
   ).length;
 
+  // Calculate filtered repo count
+  const filteredRepos = filterRepos(repos, filterQuery);
+
   // Debug info
   const debugInfo: DebugInfo = {
     view,
     selectedIndex: selectedNavIndex,
     repoCount: repos.length,
-    filterActive: false,
+    filterActive,
     lastKeypress,
     renderTime,
   };
@@ -309,12 +348,22 @@ export const Dashboard: React.FC = () => {
         )}
 
         {!isLoading && !error && view === 'home' && (
-          <RepoList
-            groups={groups}
-            selectedGroupIndex={selectedGroupIndex}
-            selectedRepoIndex={selectedRepoIndex}
-            onToggleGroup={toggleGroup}
-          />
+          <>
+            {filterActive && (
+              <FilterInput
+                value={filterQuery}
+                onChange={setFilterQuery}
+                matchCount={filteredRepos.length}
+                totalCount={repos.length}
+              />
+            )}
+            <RepoList
+              groups={groups}
+              selectedGroupIndex={selectedGroupIndex}
+              selectedRepoIndex={selectedRepoIndex}
+              onToggleGroup={toggleGroup}
+            />
+          </>
         )}
 
         {view === 'help' && <HelpView />}

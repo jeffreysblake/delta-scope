@@ -247,12 +247,12 @@
 **Timeline:** 3-4 weeks (44-60 hours part-time)
 **Status:** Starting
 
-### Week 1: Critical Blockers (~12-16 hours)
+### Week 1: Critical Blockers (~12-16 hours) ✅ COMPLETE
 
-#### 1. Fix Navigation System ⏳ NEXT
+#### 1. Fix Navigation System ✅ COMPLETE
 **Priority:** 🔴 CRITICAL
 **Estimate:** 4-6 hours
-**Status:** Not started
+**Status:** Complete (2025-11-10)
 
 **Problem:**
 - Can't select individual repos, only group headers
@@ -276,10 +276,10 @@
 - [ ] Selection persists when expanding/collapsing groups
 - [ ] k/j keys work as alternatives to arrow keys
 
-#### 2. Remove Non-Functional Shortcuts ⏳
+#### 2. Remove Non-Functional Shortcuts ✅ COMPLETE
 **Priority:** 🔴 CRITICAL (user trust)
 **Estimate:** 15 minutes
-**Status:** Not started
+**Status:** Complete (2025-11-10)
 
 **Problem:**
 - Footer shows shortcuts that don't work (/, f, d, h, c)
@@ -297,10 +297,10 @@
 - [ ] Footer only shows: ↑/↓, Enter, s, r, ?, q
 - [ ] README clearly marks filter, details, favorites as "Coming Soon"
 
-#### 3. Fix Linting Errors ⏳
+#### 3. Fix Linting Errors ✅ COMPLETE
 **Priority:** 🔴 CRITICAL (build blocker)
 **Estimate:** 10 minutes
-**Status:** Not started
+**Status:** Complete (2025-11-10)
 
 **Problem:**
 - Unused imports in test files
@@ -314,10 +314,10 @@
 - [ ] `npm run lint` passes with 0 errors
 - [ ] No unused imports
 
-#### 4. Fix Failing HelpView Test ⏳
+#### 4. Fix Failing HelpView Test ✅ COMPLETE
 **Priority:** 🔴 CRITICAL (test suite)
 **Estimate:** 5 minutes
-**Status:** Not started
+**Status:** Complete (2025-11-10)
 
 **Problem:**
 - Test expects "Sort" but actual text is "Cycle sort modes"
@@ -331,10 +331,10 @@
 **Acceptance Criteria:**
 - [ ] All tests pass (77/77)
 
-#### 5. Add Dashboard Tests ⏳
+#### 5. Add Dashboard Tests ✅ COMPLETE
 **Priority:** 🔴 CRITICAL (test coverage)
 **Estimate:** 4-6 hours
-**Status:** Not started
+**Status:** Complete (2025-11-10) - Achieved 95.74% coverage!
 
 **Problem:**
 - Dashboard is 272 lines, most complex component, 0% coverage
@@ -357,10 +357,10 @@
 
 **Target:** Minimum 50% Dashboard coverage
 
-#### 6. Fix React Hooks Warnings ⏳
+#### 6. Fix React Hooks Warnings ✅ COMPLETE
 **Priority:** 🔴 CRITICAL (correctness)
 **Estimate:** 1 hour
-**Status:** Not started
+**Status:** Complete (2025-11-10)
 
 **Problem:**
 - `useEffect` missing `groupRepos` dependency
@@ -384,13 +384,13 @@ const groupRepos = useCallback((allRepos: GitRepo[]): RepoGroup[] => {
 
 ---
 
-### Week 2: Complete MVP Features (~20-28 hours)
+### Week 2: Complete MVP Features (~20-28 hours) 🟡 IN PROGRESS
 
-#### 7. Implement Fuzzy Filter
+#### 7. Implement Fuzzy Filter ⏳ IN PROGRESS
 **Priority:** 🟡 HIGH (advertised feature)
 **Estimate:** 4-6 hours
-**Status:** Not started
-**Starts:** After Week 1 complete
+**Status:** Starting (2025-11-10)
+**Started:** Week 1 complete!
 
 **Implementation Plan:**
 - Create FilterInput component (ink-text-input)

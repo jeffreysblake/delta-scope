@@ -22,6 +22,7 @@ export const Footer: React.FC<FooterProps> = ({ view }) => {
     <Box borderStyle="single" borderColor="cyan" paddingX={1}>
       <Text dimColor>↑/↓: Navigate | </Text>
       <Text dimColor>Enter: Expand | </Text>
+      <Text dimColor>/: Filter | </Text>
       <Text dimColor>s: Sort | </Text>
       <Text dimColor>r: Refresh | </Text>
       <Text dimColor>?: Help | </Text>
