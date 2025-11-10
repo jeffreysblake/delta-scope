@@ -403,7 +403,13 @@ export const Dashboard: React.FC = () => {
   // Render
   return (
     <Box flexDirection="column">
-      <Header totalRepos={repos.length} needsAttention={needsAttention} lastRefresh={lastRefresh} />
+      <Header
+        totalRepos={repos.length}
+        needsAttention={needsAttention}
+        lastRefresh={lastRefresh}
+        view={view}
+        currentRepoName={selectedRepo?.name}
+      />
 
       {/* Main content area */}
       <Box flexDirection="column" paddingY={1} minHeight={10}>
