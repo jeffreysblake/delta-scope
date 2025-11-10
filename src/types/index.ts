@@ -37,7 +37,7 @@ export interface AppConfig {
 
 export type View = 'home' | 'detail' | 'settings' | 'help';
 
-export type SortMode = 'name' | 'status' | 'recent' | 'changes';
+export type SortMode = 'name' | 'status' | 'recent' | 'changes' | 'frecency';
 
 export interface AppState {
   view: View;

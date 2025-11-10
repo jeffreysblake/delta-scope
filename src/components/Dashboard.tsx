@@ -25,6 +25,7 @@ import { SettingsView } from './SettingsView.js';
 import { scanForRepos } from '../services/gitScanner.js';
 import { getMultipleRepoStatus } from '../services/gitStatus.js';
 import { configManager } from '../services/configManager.js';
+import { getDatabaseService, closeDatabaseService } from '../services/database.js';
 
 const isDev = process.env.DEV === 'true';
 
@@ -43,6 +44,7 @@ export const Dashboard: React.FC = () => {
   const [selectedRepo, setSelectedRepo] = useState<GitRepo | null>(null);
   const [lastKeypress, setLastKeypress] = useState<string>('');
   const [renderTime, setRenderTime] = useState<number>(0);
+  const [searchSuggestions, setSearchSuggestions] = useState<string[]>([]);
 
   /**
    * Load all repositories
@@ -58,6 +60,10 @@ export const Dashboard: React.FC = () => {
 
       setRepos(repoStatuses);
       setLastRefresh(new Date());
+
+      // Calculate frecency scores after loading repos
+      const db = getDatabaseService();
+      db.calculateFrecency();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
@@ -96,6 +102,14 @@ export const Dashboard: React.FC = () => {
           (a, b) =>
             b.linesAdded + b.linesDeleted - (a.linesAdded + a.linesDeleted)
         );
+      case 'frecency': {
+        const db = getDatabaseService();
+        return sorted.sort((a, b) => {
+          const scoreA = db.getFrecencyScore(a.path);
+          const scoreB = db.getFrecencyScore(b.path);
+          return scoreB - scoreA; // Higher scores first
+        });
+      }
       default:
         return sorted;
     }
@@ -146,9 +160,20 @@ export const Dashboard: React.FC = () => {
     ];
   }, [sortMode, sortRepos]);
 
-  // Load repos on mount
+  // Initialize database and load repos on mount
   useEffect(() => {
+    // Initialize database service (singleton)
+    const db = getDatabaseService();
+
+    // Clean up old history on startup (90+ days old)
+    db.cleanupOldHistory();
+
     loadRepos();
+
+    // Cleanup on unmount
+    return () => {
+      closeDatabaseService();
+    };
   }, [loadRepos]);
 
   // Group repos whenever they change or filter changes
@@ -156,7 +181,22 @@ export const Dashboard: React.FC = () => {
     const filtered = filterRepos(repos, filterQuery);
     const grouped = groupRepos(filtered);
     setGroups(grouped);
-  }, [repos, sortMode, filterQuery, groupRepos, filterRepos]);
+
+    // Record search queries (debounced implicitly by user typing)
+    if (filterQuery.trim() && filterActive) {
+      const db = getDatabaseService();
+      db.recordSearch(filterQuery, filtered.length);
+    }
+  }, [repos, sortMode, filterQuery, groupRepos, filterRepos, filterActive]);
+
+  // Load search history when filter becomes active
+  useEffect(() => {
+    if (filterActive) {
+      const db = getDatabaseService();
+      const history = db.getSearchHistory(10);
+      setSearchSuggestions(history);
+    }
+  }, [filterActive]);
 
   // Track render time for debug
   useEffect(() => {
@@ -246,7 +286,7 @@ export const Dashboard: React.FC = () => {
    * Cycle sort mode
    */
   const cycleSortMode = () => {
-    const modes: SortMode[] = ['status', 'name', 'recent', 'changes'];
+    const modes: SortMode[] = ['status', 'name', 'recent', 'changes', 'frecency'];
     const currentIndex = modes.indexOf(sortMode);
     const nextIndex = (currentIndex + 1) % modes.length;
     setSortMode(modes[nextIndex]);
@@ -344,6 +384,9 @@ export const Dashboard: React.FC = () => {
         if (repo) {
           setSelectedRepo(repo);
           setView('detail');
+          // Track access for frecency
+          const db = getDatabaseService();
+          db.recordAccess(repo.path, 'view');
         }
       }
     }
@@ -356,6 +399,9 @@ export const Dashboard: React.FC = () => {
         if (repo) {
           setSelectedRepo(repo);
           setView('detail');
+          // Track access for frecency
+          const db = getDatabaseService();
+          db.recordAccess(repo.path, 'view');
         }
       }
     }
@@ -377,6 +423,9 @@ export const Dashboard: React.FC = () => {
               r.path === repo.path ? { ...r, isFavorite: !r.isFavorite } : r
             )
           );
+          // Track favorite action for frecency
+          const db = getDatabaseService();
+          db.recordAccess(repo.path, 'favorite');
         }
       }
     }
@@ -435,6 +484,7 @@ export const Dashboard: React.FC = () => {
                 onChange={setFilterQuery}
                 matchCount={filteredRepos.length}
                 totalCount={repos.length}
+                suggestions={searchSuggestions}
               />
             )}
             <RepoList

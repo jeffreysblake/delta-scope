@@ -34,10 +34,13 @@ Keyboard Shortcuts:
   Escape         Clear filter, or return from views
   d              Show repo details
   f              Toggle favorite (star)
-  s              Cycle sort modes (name → status → recent → changes)
+  s              Cycle sort modes (status → name → recent → changes → frecency)
   r              Refresh all repos
   h              Home view (return from detail)
   c              Settings (view configuration)
   ?              Show this help
   q              Quit
+
+Frecency: A smart sorting algorithm that considers both frequency and recency
+          of your interactions with repositories.
 `;

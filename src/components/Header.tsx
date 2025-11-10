@@ -26,7 +26,7 @@ export const Header: React.FC<HeaderProps> = ({
   // Build breadcrumb trail
   const getBreadcrumb = () => {
     const base = (
-      <Text bold color="magenta">
+      <Text key="base" bold color="magenta">
         delta-scope v0.2.0
       </Text>
     );
