@@ -64,7 +64,7 @@ You must respond with a valid JSON object containing:
  * Format context for analysis
  */
 export function formatContextForAnalysis(context: AgentContext): string {
-  const { scan_data, user_history, settings, intelligence } = context;
+  const { scan_data, user_history, settings, intelligence, monitoring } = context;
 
   let output = `
 # Repository Scan Summary
@@ -115,6 +115,21 @@ ${Object.entries(intelligence.health_trends).slice(0, 5).map(([path, trend]) => 
 - Total recommendations given: ${intelligence.recommendation_stats.total_recommendations}
 - Acceptance rate: ${(intelligence.recommendation_stats.acceptance_rate * 100).toFixed(0)}%
 ${intelligence.recommendation_stats.acceptance_rate > 0 ? `- User prefers: ${intelligence.recommendation_stats.acceptance_rate > 0.5 ? 'proactive suggestions' : 'conservative recommendations'}` : ''}
+`;
+  }
+
+  // Add monitoring data if available (Phase 6)
+  if (monitoring) {
+    output += `
+## Active Alerts
+${monitoring.alerts.length > 0
+  ? monitoring.alerts.map(a => `- [${a.priority.toUpperCase()}] ${a.title} (${a.repo_path.split('/').pop()})`).join('\n')
+  : 'No alerts'}
+
+## Predictions & Recommendations
+${monitoring.predictions.length > 0
+  ? monitoring.predictions.map(p => `- ${p.action} (confidence: ${(p.confidence * 100).toFixed(0)}%): ${p.reason}`).join('\n')
+  : 'No predictions available'}
 `;
   }
 

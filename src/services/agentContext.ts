@@ -18,9 +18,14 @@ import type {
   IntelligenceData,
   WorkflowPatternInfo,
   AnomalyInfo,
+  MonitoringData,
+  AlertInfo,
+  PredictionInfo,
 } from '../types/agent.js';
 import { getDatabaseService } from './database.js';
 import { getPatternDetectionService } from './patternDetection.js';
+import { getMonitoringService } from './monitoring.js';
+import { getPredictiveService } from './predictive.js';
 
 /**
  * Build environment information
@@ -192,6 +197,37 @@ function buildIntelligenceData(
 }
 
 /**
+ * Build monitoring data (Phase 6)
+ */
+function buildMonitoringData(enrichedRepos: EnrichedRepo[]): MonitoringData {
+  const monitoringService = getMonitoringService();
+  const predictiveService = getPredictiveService();
+
+  // Generate alerts
+  const alerts = monitoringService.monitorRepositories(enrichedRepos);
+  const alertInfo: AlertInfo[] = alerts.slice(0, 10).map(a => ({
+    type: a.type,
+    priority: a.priority,
+    title: a.title,
+    repo_path: a.repo_path,
+  }));
+
+  // Generate predictions
+  const predictions = predictiveService.predictWorkflowActions(enrichedRepos);
+  const predictionInfo: PredictionInfo[] = predictions.slice(0, 5).map(p => ({
+    action: p.action,
+    confidence: p.confidence,
+    reason: p.reason,
+    repos: p.repos,
+  }));
+
+  return {
+    alerts: alertInfo,
+    predictions: predictionInfo,
+  };
+}
+
+/**
  * Build user history from database
  */
 function buildUserHistory(db: ReturnType<typeof getDatabaseService>): UserHistory {
@@ -241,7 +277,8 @@ function buildUserHistory(db: ReturnType<typeof getDatabaseService>): UserHistor
 export function buildAgentContext(
   repos: GitRepo[],
   config: AppConfig,
-  includeIntelligence: boolean = true
+  includeIntelligence: boolean = true,
+  includeMonitoring: boolean = true
 ): AgentContext {
   const db = getDatabaseService();
 
@@ -271,12 +308,18 @@ export function buildAgentContext(
     ? buildIntelligenceData(enrichedRepos, db)
     : undefined;
 
+  // Build monitoring data (Phase 6)
+  const monitoring = includeMonitoring
+    ? buildMonitoringData(enrichedRepos)
+    : undefined;
+
   return {
     settings: config,
     scan_data: scanSnapshot,
     user_history: userHistory,
     environment,
     intelligence,
+    monitoring,
   };
 }
 

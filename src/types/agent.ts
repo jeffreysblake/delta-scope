@@ -107,6 +107,34 @@ export interface IntelligenceData {
 }
 
 /**
+ * Monitoring data from proactive monitoring (Phase 6)
+ */
+export interface MonitoringData {
+  alerts: AlertInfo[];
+  predictions: PredictionInfo[];
+}
+
+/**
+ * Alert information
+ */
+export interface AlertInfo {
+  type: string;
+  priority: string;
+  title: string;
+  repo_path: string;
+}
+
+/**
+ * Prediction information
+ */
+export interface PredictionInfo {
+  action: string;
+  confidence: number;
+  reason: string;
+  repos: string[];
+}
+
+/**
  * Complete context bundle for AI agent
  */
 export interface AgentContext {
@@ -115,6 +143,7 @@ export interface AgentContext {
   user_history: UserHistory;
   environment: EnvironmentInfo;
   intelligence?: IntelligenceData; // Phase 4: Enhanced intelligence
+  monitoring?: MonitoringData; // Phase 6: Proactive monitoring
 }
 
 /**
