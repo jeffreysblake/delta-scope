@@ -20,6 +20,7 @@ type EditableField =
   | 'aiProvider'
   | 'aiApiKey'
   | 'aiModel'
+  | 'aiEndpoint'
   | 'aiAutoAnalyze'
   | 'aiMaxRecommendations'
   | 'aiTimeout'
@@ -45,6 +46,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ config, onConfigChan
       setTempValue(config.ai?.apiKey || '');
     } else if (field === 'aiModel') {
       setTempValue(config.ai?.model || 'claude-sonnet-4-5');
+    } else if (field === 'aiEndpoint') {
+      setTempValue(config.ai?.endpoint || 'http://localhost:1234/v1');
     } else if (field === 'aiMaxRecommendations') {
       setTempValue(config.ai?.maxRecommendations?.toString() || '10');
     } else if (field === 'aiTimeout') {
@@ -98,6 +101,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ config, onConfigChan
           ai: {
             ...config.ai!,
             model: tempValue.trim(),
+          },
+        });
+      } else if (editingField === 'aiEndpoint') {
+        onConfigChange({
+          ai: {
+            ...config.ai!,
+            endpoint: tempValue.trim(),
           },
         });
       } else if (editingField === 'aiMaxRecommendations') {
@@ -194,14 +204,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ config, onConfigChan
     }
 
     // If editing a text field, handle typing
-    if (editingField === 'aiApiKey' || editingField === 'aiModel') {
+    if (editingField === 'aiApiKey' || editingField === 'aiModel' || editingField === 'aiEndpoint') {
       if (key.return) {
         saveEdit();
       } else if (key.escape) {
         cancelEdit();
       } else if (key.backspace || key.delete) {
         setTempValue((prev) => prev.slice(0, -1));
-      } else if (input && input.length === 1 && /[\w\-.]/.test(input)) {
+      } else if (input && input.length === 1 && /[\w\-:.\/]/.test(input)) {
         setTempValue((prev) => prev + input);
       }
       return;
@@ -224,6 +234,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ config, onConfigChan
       startEdit('aiApiKey');
     } else if (input === 'm' && config.ai) {
       startEdit('aiModel');
+    } else if (input === 'u' && config.ai) {
+      startEdit('aiEndpoint');
     } else if (input === 'a' && config.ai) {
       toggleValue('aiAutoAnalyze');
     } else if (input === 'n' && config.ai) {
@@ -423,6 +435,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ config, onConfigChan
               )}
             </Text>
 
+            {(config.ai.provider === 'local' || config.ai.provider === 'openai') && (
+              <Text>
+                <Text dimColor>Endpoint: </Text>
+                {editingField === 'aiEndpoint' ? (
+                  <>
+                    <Text color="yellow">{tempValue}_</Text>
+                    <Text dimColor> (Enter to save, Esc to cancel)</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text>{config.ai.endpoint || 'http://localhost:1234/v1'}</Text>
+                    {onConfigChange && (
+                      <Text dimColor> (press u to edit)</Text>
+                    )}
+                  </>
+                )}
+              </Text>
+            )}
+
             <Text>
               <Text dimColor>Auto-Analyze: </Text>
               <Text>{config.ai.autoAnalyze ? 'Yes' : 'No'}</Text>
@@ -481,7 +512,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ config, onConfigChan
             </Text>
             {config.ai && onConfigChange && (
               <Text dimColor>
-                AI: e: Enable | p: Provider | k: ApiKey | m: Model | a: AutoAnalyze | n: MaxRecs | o: Timeout
+                AI: e: Enable | p: Provider | k: ApiKey | m: Model | u: Endpoint | a: AutoAnalyze | n: MaxRecs | o: Timeout
               </Text>
             )}
           </Box>

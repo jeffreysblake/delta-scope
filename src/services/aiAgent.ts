@@ -4,6 +4,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import type { AIConfig } from '../types/index.js';
 import type {
   AgentContext,
@@ -56,6 +57,7 @@ const DANGEROUS_COMMANDS = new Set([
 export class AIAgentService {
   private config: AIConfig;
   private anthropic: Anthropic | null = null;
+  private openai: OpenAI | null = null;
   private status: AgentStatus = 'not_configured';
 
   constructor(config: AIConfig) {
@@ -72,7 +74,9 @@ export class AIAgentService {
       return;
     }
 
-    if (!this.config.apiKey && this.config.provider === 'anthropic') {
+    // For Anthropic and OpenAI, API key is required
+    // For local models, API key can be anything (e.g., "local" or "not-needed")
+    if (!this.config.apiKey && this.config.provider !== 'local') {
       this.status = 'not_configured';
       return;
     }
@@ -85,8 +89,19 @@ export class AIAgentService {
           maxRetries: this.config.maxRetries,
         });
         this.status = 'ready';
+      } else if (this.config.provider === 'openai' || this.config.provider === 'local') {
+        // OpenAI-compatible API (works with OpenAI, lm-studio, ollama)
+        const baseURL = this.config.endpoint ||
+          (this.config.provider === 'local' ? 'http://localhost:1234/v1' : undefined);
+
+        this.openai = new OpenAI({
+          apiKey: this.config.apiKey || 'not-needed', // Local models don't need real keys
+          baseURL,
+          timeout: this.config.timeout,
+          maxRetries: this.config.maxRetries,
+        });
+        this.status = 'ready';
       } else {
-        // TODO: Add OpenAI and local model support
         this.status = 'not_configured';
       }
     } catch (error) {
@@ -111,10 +126,47 @@ export class AIAgentService {
   }
 
   /**
+   * Call AI provider (Anthropic or OpenAI-compatible)
+   */
+  private async callAI(systemPrompt: string, userPrompt: string, maxTokens = 4096): Promise<string> {
+    if (this.config.provider === 'anthropic' && this.anthropic) {
+      const response = await this.anthropic.messages.create({
+        model: this.config.model,
+        max_tokens: maxTokens,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }],
+      });
+
+      const content = response.content[0];
+      if (content.type !== 'text') {
+        throw new Error('Unexpected response type from Anthropic');
+      }
+      return content.text;
+    } else if ((this.config.provider === 'openai' || this.config.provider === 'local') && this.openai) {
+      const response = await this.openai.chat.completions.create({
+        model: this.config.model,
+        max_tokens: maxTokens,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+      });
+
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+        throw new Error('No content in OpenAI response');
+      }
+      return content;
+    } else {
+      throw new Error(`Provider ${this.config.provider} not initialized`);
+    }
+  }
+
+  /**
    * Analyze repository context
    */
   async analyze(context: AgentContext): Promise<AgentResponse> {
-    if (this.status !== 'ready' || !this.anthropic) {
+    if (this.status !== 'ready') {
       throw new Error(`Agent not ready: ${this.status}`);
     }
 
@@ -128,26 +180,11 @@ export class AIAgentService {
       // Build prompt
       const prompt = buildAnalysisPrompt(truncatedContext);
 
-      // Call Anthropic API
-      const response = await this.anthropic.messages.create({
-        model: this.config.model,
-        max_tokens: 4096,
-        system: SYSTEM_PROMPT,
-        messages: [
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-      });
+      // Call AI provider
+      const responseText = await this.callAI(SYSTEM_PROMPT, prompt);
 
       // Parse response
-      const content = response.content[0];
-      if (content.type !== 'text') {
-        throw new Error('Unexpected response type from AI');
-      }
-
-      const result = this.parseResponse(content.text);
+      const result = this.parseResponse(responseText);
       const processingTime = Date.now() - startTime;
 
       // Save context snapshot
@@ -176,7 +213,7 @@ export class AIAgentService {
    * Get recommendations with optional focus
    */
   async recommend(context: AgentContext, focus?: string): Promise<AgentResponse> {
-    if (this.status !== 'ready' || !this.anthropic) {
+    if (this.status !== 'ready') {
       throw new Error(`Agent not ready: ${this.status}`);
     }
 
@@ -189,24 +226,8 @@ export class AIAgentService {
         ? buildFocusedPrompt(truncatedContext, focus)
         : buildAnalysisPrompt(truncatedContext);
 
-      const response = await this.anthropic.messages.create({
-        model: this.config.model,
-        max_tokens: 4096,
-        system: SYSTEM_PROMPT,
-        messages: [
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-      });
-
-      const content = response.content[0];
-      if (content.type !== 'text') {
-        throw new Error('Unexpected response type from AI');
-      }
-
-      const result = this.parseResponse(content.text);
+      const responseText = await this.callAI(SYSTEM_PROMPT, prompt);
+      const result = this.parseResponse(responseText);
       const processingTime = Date.now() - startTime;
 
       // Save context snapshot
@@ -235,7 +256,7 @@ export class AIAgentService {
    * Quick insight (faster, less detailed)
    */
   async quickInsight(context: AgentContext): Promise<AgentResponse> {
-    if (this.status !== 'ready' || !this.anthropic) {
+    if (this.status !== 'ready') {
       throw new Error(`Agent not ready: ${this.status}`);
     }
 
@@ -244,25 +265,8 @@ export class AIAgentService {
 
     try {
       const prompt = buildQuickInsightPrompt(context);
-
-      const response = await this.anthropic.messages.create({
-        model: this.config.model,
-        max_tokens: 1024, // Smaller for quick insights
-        system: SYSTEM_PROMPT,
-        messages: [
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-      });
-
-      const content = response.content[0];
-      if (content.type !== 'text') {
-        throw new Error('Unexpected response type from AI');
-      }
-
-      const result = this.parseResponse(content.text);
+      const responseText = await this.callAI(SYSTEM_PROMPT, prompt, 1024); // Smaller for quick insights
+      const result = this.parseResponse(responseText);
       const processingTime = Date.now() - startTime;
 
       this.status = 'ready';
