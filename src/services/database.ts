@@ -9,7 +9,7 @@ import { homedir } from 'os';
 import { existsSync, mkdirSync } from 'fs';
 
 // Database schema version for migrations
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 interface AccessHistoryRecord {
   id?: number;
@@ -138,6 +138,25 @@ export class DatabaseService {
 
       // Record schema version
       this.db.prepare('INSERT INTO schema_version (version, applied_at) VALUES (?, ?)').run(2, Date.now());
+    }
+
+    if (fromVersion < 3) {
+      // Migration 3: Dismissed recommendations
+      this.db.exec(`
+        -- Dismissed recommendations for AI agent
+        CREATE TABLE IF NOT EXISTS dismissed_recommendations (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          recommendation_id TEXT NOT NULL UNIQUE,
+          dismissed_at INTEGER NOT NULL,
+          expires_at INTEGER
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_dismissed_rec_id ON dismissed_recommendations(recommendation_id);
+        CREATE INDEX IF NOT EXISTS idx_dismissed_expires ON dismissed_recommendations(expires_at);
+      `);
+
+      // Record schema version
+      this.db.prepare('INSERT INTO schema_version (version, applied_at) VALUES (?, ?)').run(3, Date.now());
     }
   }
 
@@ -290,6 +309,9 @@ export class DatabaseService {
 
     // Also cleanup old snapshots (keep last 30 days)
     this.cleanupOldSnapshots();
+
+    // Cleanup expired dismissed recommendations
+    this.cleanupExpiredDismissals();
   }
 
   /**
@@ -368,6 +390,76 @@ export class DatabaseService {
   cleanupOldSnapshots(): void {
     const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
     this.db.prepare('DELETE FROM context_snapshots WHERE timestamp < ?').run(thirtyDaysAgo);
+  }
+
+  /**
+   * Dismiss a recommendation (optionally with expiration)
+   */
+  dismissRecommendation(recommendationId: string, expiresInDays?: number): void {
+    const dismissedAt = Date.now();
+    const expiresAt = expiresInDays
+      ? dismissedAt + (expiresInDays * 24 * 60 * 60 * 1000)
+      : null;
+
+    const stmt = this.db.prepare(`
+      INSERT OR REPLACE INTO dismissed_recommendations (recommendation_id, dismissed_at, expires_at)
+      VALUES (?, ?, ?)
+    `);
+
+    stmt.run(recommendationId, dismissedAt, expiresAt);
+  }
+
+  /**
+   * Check if a recommendation is dismissed
+   */
+  isRecommendationDismissed(recommendationId: string): boolean {
+    const stmt = this.db.prepare(`
+      SELECT id, expires_at FROM dismissed_recommendations
+      WHERE recommendation_id = ?
+    `);
+
+    const row = stmt.get(recommendationId) as { id: number; expires_at: number | null } | undefined;
+
+    if (!row) {
+      return false;
+    }
+
+    // Check if expired
+    if (row.expires_at && row.expires_at < Date.now()) {
+      // Remove expired dismissal
+      this.db.prepare('DELETE FROM dismissed_recommendations WHERE id = ?').run(row.id);
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Undismiss a recommendation
+   */
+  undismissRecommendation(recommendationId: string): void {
+    this.db.prepare('DELETE FROM dismissed_recommendations WHERE recommendation_id = ?').run(recommendationId);
+  }
+
+  /**
+   * Get all dismissed recommendation IDs
+   */
+  getDismissedRecommendations(): string[] {
+    const stmt = this.db.prepare(`
+      SELECT recommendation_id FROM dismissed_recommendations
+      WHERE expires_at IS NULL OR expires_at > ?
+    `);
+
+    const rows = stmt.all(Date.now()) as Array<{ recommendation_id: string }>;
+    return rows.map((row) => row.recommendation_id);
+  }
+
+  /**
+   * Clean up expired dismissed recommendations
+   */
+  cleanupExpiredDismissals(): void {
+    const now = Date.now();
+    this.db.prepare('DELETE FROM dismissed_recommendations WHERE expires_at IS NOT NULL AND expires_at < ?').run(now);
   }
 
   /**

@@ -53,6 +53,34 @@ export const Dashboard: React.FC = () => {
   const [agentLoading, setAgentLoading] = useState(false);
   const [agentError, setAgentError] = useState<string | null>(null);
   const [agentStatus, setAgentStatus] = useState<AgentStatus>('not_configured');
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  /**
+   * Show notification that auto-dismisses after 3 seconds
+   */
+  const showNotification = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 3000);
+  }, []);
+
+  /**
+   * Filter dismissed recommendations from agent response
+   */
+  const filterDismissedRecommendations = useCallback((response: AgentResponse | null): AgentResponse | null => {
+    if (!response) return null;
+
+    const db = getDatabaseService();
+    const dismissedIds = new Set(db.getDismissedRecommendations());
+
+    const filteredRecommendations = response.recommendations.filter(
+      (rec) => !dismissedIds.has(rec.id)
+    );
+
+    return {
+      ...response,
+      recommendations: filteredRecommendations,
+    };
+  }, []);
 
   /**
    * Run AI agent analysis
@@ -74,7 +102,9 @@ export const Dashboard: React.FC = () => {
       const context = buildAgentContext(reposToAnalyze, config);
       const response = await agent.analyze(context);
 
-      setAgentResponse(response);
+      // Filter out dismissed recommendations
+      const filteredResponse = filterDismissedRecommendations(response);
+      setAgentResponse(filteredResponse);
       setAgentStatus(agent.getStatus());
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
@@ -83,7 +113,7 @@ export const Dashboard: React.FC = () => {
     } finally {
       setAgentLoading(false);
     }
-  }, []);
+  }, [filterDismissedRecommendations]);
 
   /**
    * Load all repositories
@@ -505,6 +535,94 @@ export const Dashboard: React.FC = () => {
   // Calculate filtered repo count
   const filteredRepos = filterRepos(repos, filterQuery);
 
+  /**
+   * Handle dismissing a recommendation
+   */
+  const handleDismissRecommendation = useCallback((recommendationId: string) => {
+    try {
+      const db = getDatabaseService();
+      db.dismissRecommendation(recommendationId);
+
+      // Update response to remove dismissed recommendation
+      setAgentResponse((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          recommendations: prev.recommendations.filter((rec) => rec.id !== recommendationId),
+        };
+      });
+
+      showNotification('Recommendation dismissed', 'success');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to dismiss';
+      showNotification(errorMessage, 'error');
+    }
+  }, [showNotification]);
+
+  /**
+   * Handle executing an action from a recommendation
+   */
+  const handleExecuteAction = useCallback((recommendationId: string, actionId: string) => {
+    try {
+      const recommendation = agentResponse?.recommendations.find((r) => r.id === recommendationId);
+      if (!recommendation) {
+        throw new Error('Recommendation not found');
+      }
+
+      const action = recommendation.actions.find((a) => a.id === actionId);
+      if (!action) {
+        throw new Error('Action not found');
+      }
+
+      // Validate action safety
+      const config = configManager.get();
+      const agent = getAIAgentService(config.ai!);
+      const validation = agent.validate(recommendation, actionId);
+
+      if (!validation.valid) {
+        throw new Error(validation.warnings.join('; '));
+      }
+
+      // For now, only execute safe actions automatically
+      // Unsafe actions require confirmation (TODO: implement confirmation dialog)
+      if (!validation.safe) {
+        showNotification('This action requires confirmation (not yet implemented)', 'error');
+        return;
+      }
+
+      // Execute safe actions based on command type
+      switch (action.command) {
+        case 'view':
+          // Navigate to first affected repo
+          if (recommendation.affected_repos.length > 0) {
+            const repo = repos.find((r) => r.path === recommendation.affected_repos[0]);
+            if (repo) {
+              setSelectedRepo(repo);
+              setView('detail');
+              showNotification(`Viewing ${repo.name}`, 'success');
+            }
+          }
+          break;
+
+        case 'refresh':
+          loadRepos();
+          showNotification('Refreshing repositories...', 'success');
+          break;
+
+        case 'analyze':
+          runAgentAnalysis(repos);
+          showNotification('Running analysis...', 'success');
+          break;
+
+        default:
+          showNotification(`Action "${action.label}" not yet implemented`, 'error');
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to execute action';
+      showNotification(errorMessage, 'error');
+    }
+  }, [agentResponse, repos, showNotification, loadRepos, runAgentAnalysis]);
+
   // Debug info
   const debugInfo: DebugInfo = {
     view,
@@ -577,17 +695,24 @@ export const Dashboard: React.FC = () => {
             response={agentResponse}
             isLoading={agentLoading}
             error={agentError}
-            onDismiss={(recId) => {
-              // TODO: Implement dismiss functionality
-              console.log('Dismiss recommendation:', recId);
-            }}
-            onExecute={(recId, actionId) => {
-              // TODO: Implement execute functionality
-              console.log('Execute action:', recId, actionId);
-            }}
+            onDismiss={handleDismissRecommendation}
+            onExecute={handleExecuteAction}
           />
         )}
       </Box>
+
+      {/* Notification display */}
+      {notification && (
+        <Box
+          borderStyle="single"
+          borderColor={notification.type === 'success' ? 'green' : 'red'}
+          paddingX={1}
+        >
+          <Text color={notification.type === 'success' ? 'green' : 'red'}>
+            {notification.message}
+          </Text>
+        </Box>
+      )}
 
       <Footer view={view} />
 
