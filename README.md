@@ -273,11 +273,12 @@ See [ROADMAP.md](./ROADMAP.md) and [AGENTIC_ROADMAP.md](./AGENTIC_ROADMAP.md) fo
 - ✅ Phase 2: SQLite persistence (frecency, search history, favorites)
 - ✅ Phase 3: AI Agent foundation (Anthropic/OpenAI/local support)
 - ✅ Phase 3.5: Agent actions (dismiss, execute with safety checks)
+- ✅ Phase 4: Enhanced intelligence (pattern detection, anomaly detection, health scoring, learning)
+- ✅ Phase 5 (Weeks 1-2): Agent actions (safe actions, git operations, comprehensive safety validation)
 
 ### Coming Soon
-- 🚧 Phase 4: Enhanced intelligence (pattern detection, learning)
-- 🚧 Phase 5: Advanced actions (git operations, batch processing)
-- 🚧 Phase 6: Proactive monitoring (alerts, predictions)
+- 🚧 Phase 5 (Week 3): Background agent & scheduling
+- 🚧 Phase 6: Proactive monitoring (alerts, predictions, integrations)
 
 ## Database
 
