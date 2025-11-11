@@ -15,8 +15,12 @@ import type {
   UserHistory,
   EnvironmentInfo,
   ActionCount,
+  IntelligenceData,
+  WorkflowPatternInfo,
+  AnomalyInfo,
 } from '../types/agent.js';
 import { getDatabaseService } from './database.js';
+import { getPatternDetectionService } from './patternDetection.js';
 
 /**
  * Build environment information
@@ -47,6 +51,7 @@ function buildEnvironmentInfo(): EnvironmentInfo {
 
 /**
  * Calculate health score for a repo (0-100)
+ * Note: This is a simplified version. The full version is in patternDetection.ts
  */
 function calculateHealthScore(repo: GitRepo, daysSinceCommit: number | null): number {
   let score = 100;
@@ -138,6 +143,55 @@ function buildScanSummary(repos: EnrichedRepo[]): ScanSummary {
 }
 
 /**
+ * Build intelligence data from pattern detection
+ */
+function buildIntelligenceData(
+  enrichedRepos: EnrichedRepo[],
+  db: ReturnType<typeof getDatabaseService>
+): IntelligenceData {
+  const patternService = getPatternDetectionService();
+
+  // Detect workflow patterns
+  const patterns = patternService.detectWorkflowPatterns();
+  const workflowPatterns: WorkflowPatternInfo[] = patterns.map(p => ({
+    name: p.name,
+    type: p.type,
+    repos: p.repos,
+    frequency: p.frequency,
+    confidence: p.confidence,
+  }));
+
+  // Detect anomalies
+  const detectedAnomalies = patternService.detectAnomalies(enrichedRepos);
+  const anomalies: AnomalyInfo[] = detectedAnomalies.map(a => ({
+    repo_path: a.repoPath,
+    type: a.type,
+    severity: a.severity,
+    description: a.description,
+  }));
+
+  // Calculate health trends for each repo
+  const healthTrends: Record<string, 'improving' | 'declining' | 'stable'> = {};
+  for (const repo of enrichedRepos) {
+    const health = patternService.calculateHealthScore(repo);
+    healthTrends[repo.path] = health.trend;
+  }
+
+  // Get recommendation stats
+  const stats = db.getRecommendationStats();
+
+  return {
+    workflow_patterns: workflowPatterns,
+    anomalies,
+    health_trends: healthTrends,
+    recommendation_stats: {
+      total_recommendations: stats.total,
+      acceptance_rate: stats.acceptanceRate,
+    },
+  };
+}
+
+/**
  * Build user history from database
  */
 function buildUserHistory(db: ReturnType<typeof getDatabaseService>): UserHistory {
@@ -186,7 +240,8 @@ function buildUserHistory(db: ReturnType<typeof getDatabaseService>): UserHistor
  */
 export function buildAgentContext(
   repos: GitRepo[],
-  config: AppConfig
+  config: AppConfig,
+  includeIntelligence: boolean = true
 ): AgentContext {
   const db = getDatabaseService();
 
@@ -211,11 +266,17 @@ export function buildAgentContext(
   // Build environment info
   const environment = buildEnvironmentInfo();
 
+  // Build intelligence data (Phase 4)
+  const intelligence = includeIntelligence
+    ? buildIntelligenceData(enrichedRepos, db)
+    : undefined;
+
   return {
     settings: config,
     scan_data: scanSnapshot,
     user_history: userHistory,
     environment,
+    intelligence,
   };
 }
 

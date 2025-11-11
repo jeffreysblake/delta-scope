@@ -9,7 +9,7 @@ import { homedir } from 'os';
 import { existsSync, mkdirSync } from 'fs';
 
 // Database schema version for migrations
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 interface AccessHistoryRecord {
   id?: number;
@@ -157,6 +157,91 @@ export class DatabaseService {
 
       // Record schema version
       this.db.prepare('INSERT INTO schema_version (version, applied_at) VALUES (?, ?)').run(3, Date.now());
+    }
+
+    if (fromVersion < 4) {
+      // Migration 4: Phase 4 intelligence features (patterns, feedback, anomalies)
+      this.db.exec(`
+        -- Workflow patterns detected by AI
+        CREATE TABLE IF NOT EXISTS workflow_patterns (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          pattern_type TEXT NOT NULL,
+          repos TEXT NOT NULL,
+          steps TEXT NOT NULL,
+          frequency INTEGER NOT NULL DEFAULT 1,
+          confidence REAL NOT NULL DEFAULT 0.0,
+          first_seen INTEGER NOT NULL,
+          last_seen INTEGER NOT NULL,
+          enabled BOOLEAN NOT NULL DEFAULT 1
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_patterns_type ON workflow_patterns(pattern_type);
+        CREATE INDEX IF NOT EXISTS idx_patterns_last_seen ON workflow_patterns(last_seen);
+
+        -- Recommendation feedback for learning
+        CREATE TABLE IF NOT EXISTS recommendation_feedback (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          recommendation_id TEXT NOT NULL,
+          recommendation_type TEXT NOT NULL,
+          action TEXT NOT NULL,
+          timestamp INTEGER NOT NULL,
+          outcome TEXT,
+          notes TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_feedback_rec_id ON recommendation_feedback(recommendation_id);
+        CREATE INDEX IF NOT EXISTS idx_feedback_type ON recommendation_feedback(recommendation_type);
+        CREATE INDEX IF NOT EXISTS idx_feedback_action ON recommendation_feedback(action);
+        CREATE INDEX IF NOT EXISTS idx_feedback_timestamp ON recommendation_feedback(timestamp);
+
+        -- Detected anomalies in repos
+        CREATE TABLE IF NOT EXISTS anomalies (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          repo_path TEXT NOT NULL,
+          anomaly_type TEXT NOT NULL,
+          severity TEXT NOT NULL,
+          description TEXT NOT NULL,
+          detected_at INTEGER NOT NULL,
+          resolved_at INTEGER,
+          metadata TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_anomalies_repo ON anomalies(repo_path);
+        CREATE INDEX IF NOT EXISTS idx_anomalies_type ON anomalies(anomaly_type);
+        CREATE INDEX IF NOT EXISTS idx_anomalies_detected ON anomalies(detected_at);
+
+        -- Health score history for tracking trends
+        CREATE TABLE IF NOT EXISTS repo_health_history (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          repo_path TEXT NOT NULL,
+          health_score REAL NOT NULL,
+          factors TEXT NOT NULL,
+          recorded_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_health_history_repo ON repo_health_history(repo_path);
+        CREATE INDEX IF NOT EXISTS idx_health_history_recorded ON repo_health_history(recorded_at);
+
+        -- Action execution log for auditing
+        CREATE TABLE IF NOT EXISTS action_log (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          action_id TEXT NOT NULL,
+          action_type TEXT NOT NULL,
+          timestamp INTEGER NOT NULL,
+          status TEXT NOT NULL,
+          repos_affected INTEGER NOT NULL DEFAULT 0,
+          rollback_available BOOLEAN NOT NULL DEFAULT 0,
+          details TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_action_log_timestamp ON action_log(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_action_log_type ON action_log(action_type);
+        CREATE INDEX IF NOT EXISTS idx_action_log_status ON action_log(status);
+      `);
+
+      // Record schema version
+      this.db.prepare('INSERT INTO schema_version (version, applied_at) VALUES (?, ?)').run(4, Date.now());
     }
   }
 
@@ -460,6 +545,345 @@ export class DatabaseService {
   cleanupExpiredDismissals(): void {
     const now = Date.now();
     this.db.prepare('DELETE FROM dismissed_recommendations WHERE expires_at IS NOT NULL AND expires_at < ?').run(now);
+  }
+
+  // ============================================
+  // Phase 4: Pattern Detection & Intelligence
+  // ============================================
+
+  /**
+   * Save a detected workflow pattern
+   */
+  saveWorkflowPattern(
+    name: string,
+    patternType: string,
+    repos: string[],
+    steps: string[],
+    confidence: number
+  ): number {
+    const now = Date.now();
+
+    // Check if pattern already exists
+    const existing = this.db.prepare(`
+      SELECT id, frequency FROM workflow_patterns
+      WHERE name = ? AND pattern_type = ?
+    `).get(name, patternType) as { id: number; frequency: number } | undefined;
+
+    if (existing) {
+      // Update existing pattern
+      this.db.prepare(`
+        UPDATE workflow_patterns
+        SET frequency = frequency + 1, last_seen = ?, confidence = ?
+        WHERE id = ?
+      `).run(now, confidence, existing.id);
+      return existing.id;
+    } else {
+      // Insert new pattern
+      const stmt = this.db.prepare(`
+        INSERT INTO workflow_patterns (name, pattern_type, repos, steps, frequency, confidence, first_seen, last_seen)
+        VALUES (?, ?, ?, ?, 1, ?, ?, ?)
+      `);
+      const result = stmt.run(
+        name,
+        patternType,
+        JSON.stringify(repos),
+        JSON.stringify(steps),
+        confidence,
+        now,
+        now
+      );
+      return result.lastInsertRowid as number;
+    }
+  }
+
+  /**
+   * Get all active workflow patterns
+   */
+  getWorkflowPatterns(minConfidence: number = 0.5): Array<{
+    id: number;
+    name: string;
+    pattern_type: string;
+    repos: string[];
+    steps: string[];
+    frequency: number;
+    confidence: number;
+    first_seen: number;
+    last_seen: number;
+  }> {
+    const stmt = this.db.prepare(`
+      SELECT id, name, pattern_type, repos, steps, frequency, confidence, first_seen, last_seen
+      FROM workflow_patterns
+      WHERE enabled = 1 AND confidence >= ?
+      ORDER BY frequency DESC, confidence DESC
+    `);
+
+    const rows = stmt.all(minConfidence) as Array<{
+      id: number;
+      name: string;
+      pattern_type: string;
+      repos: string;
+      steps: string;
+      frequency: number;
+      confidence: number;
+      first_seen: number;
+      last_seen: number;
+    }>;
+
+    return rows.map((row) => ({
+      ...row,
+      repos: JSON.parse(row.repos),
+      steps: JSON.parse(row.steps),
+    }));
+  }
+
+  /**
+   * Disable a workflow pattern
+   */
+  disableWorkflowPattern(patternId: number): void {
+    this.db.prepare('UPDATE workflow_patterns SET enabled = 0 WHERE id = ?').run(patternId);
+  }
+
+  /**
+   * Record feedback on a recommendation
+   */
+  recordRecommendationFeedback(
+    recommendationId: string,
+    recommendationType: string,
+    action: 'accepted' | 'dismissed' | 'snoozed',
+    outcome?: 'helpful' | 'not_helpful' | 'harmful',
+    notes?: string
+  ): void {
+    const stmt = this.db.prepare(`
+      INSERT INTO recommendation_feedback (recommendation_id, recommendation_type, action, timestamp, outcome, notes)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+
+    stmt.run(recommendationId, recommendationType, action, Date.now(), outcome || null, notes || null);
+  }
+
+  /**
+   * Get recommendation acceptance rate by type
+   */
+  getRecommendationStats(recommendationType?: string): {
+    total: number;
+    accepted: number;
+    dismissed: number;
+    snoozed: number;
+    acceptanceRate: number;
+  } {
+    const whereClause = recommendationType ? 'WHERE recommendation_type = ?' : '';
+    const stmt = this.db.prepare(`
+      SELECT action, COUNT(*) as count
+      FROM recommendation_feedback
+      ${whereClause}
+      GROUP BY action
+    `);
+
+    const rows = (recommendationType ? stmt.all(recommendationType) : stmt.all()) as Array<{
+      action: string;
+      count: number;
+    }>;
+
+    const stats = {
+      total: 0,
+      accepted: 0,
+      dismissed: 0,
+      snoozed: 0,
+      acceptanceRate: 0,
+    };
+
+    for (const row of rows) {
+      stats.total += row.count;
+      if (row.action === 'accepted') stats.accepted = row.count;
+      if (row.action === 'dismissed') stats.dismissed = row.count;
+      if (row.action === 'snoozed') stats.snoozed = row.count;
+    }
+
+    stats.acceptanceRate = stats.total > 0 ? stats.accepted / stats.total : 0;
+
+    return stats;
+  }
+
+  /**
+   * Save a detected anomaly
+   */
+  saveAnomaly(
+    repoPath: string,
+    anomalyType: string,
+    severity: 'low' | 'medium' | 'high',
+    description: string,
+    metadata?: Record<string, any>
+  ): number {
+    const stmt = this.db.prepare(`
+      INSERT INTO anomalies (repo_path, anomaly_type, severity, description, detected_at, metadata)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+
+    const result = stmt.run(
+      repoPath,
+      anomalyType,
+      severity,
+      description,
+      Date.now(),
+      metadata ? JSON.stringify(metadata) : null
+    );
+
+    return result.lastInsertRowid as number;
+  }
+
+  /**
+   * Get active anomalies for a repo or all repos
+   */
+  getAnomalies(repoPath?: string): Array<{
+    id: number;
+    repo_path: string;
+    anomaly_type: string;
+    severity: string;
+    description: string;
+    detected_at: number;
+    metadata: Record<string, any> | null;
+  }> {
+    const whereClause = repoPath ? 'WHERE repo_path = ? AND resolved_at IS NULL' : 'WHERE resolved_at IS NULL';
+    const stmt = this.db.prepare(`
+      SELECT id, repo_path, anomaly_type, severity, description, detected_at, metadata
+      FROM anomalies
+      ${whereClause}
+      ORDER BY detected_at DESC
+    `);
+
+    const rows = (repoPath ? stmt.all(repoPath) : stmt.all()) as Array<{
+      id: number;
+      repo_path: string;
+      anomaly_type: string;
+      severity: string;
+      description: string;
+      detected_at: number;
+      metadata: string | null;
+    }>;
+
+    return rows.map((row) => ({
+      ...row,
+      metadata: row.metadata ? JSON.parse(row.metadata) : null,
+    }));
+  }
+
+  /**
+   * Mark an anomaly as resolved
+   */
+  resolveAnomaly(anomalyId: number): void {
+    this.db.prepare('UPDATE anomalies SET resolved_at = ? WHERE id = ?').run(Date.now(), anomalyId);
+  }
+
+  /**
+   * Save health score history
+   */
+  saveHealthScore(
+    repoPath: string,
+    healthScore: number,
+    factors: Record<string, number>
+  ): void {
+    const stmt = this.db.prepare(`
+      INSERT INTO repo_health_history (repo_path, health_score, factors, recorded_at)
+      VALUES (?, ?, ?, ?)
+    `);
+
+    stmt.run(repoPath, healthScore, JSON.stringify(factors), Date.now());
+  }
+
+  /**
+   * Get health score history for a repo
+   */
+  getHealthHistory(repoPath: string, days: number = 30): Array<{
+    health_score: number;
+    factors: Record<string, number>;
+    recorded_at: number;
+  }> {
+    const cutoffTime = Date.now() - (days * 24 * 60 * 60 * 1000);
+    const stmt = this.db.prepare(`
+      SELECT health_score, factors, recorded_at
+      FROM repo_health_history
+      WHERE repo_path = ? AND recorded_at >= ?
+      ORDER BY recorded_at DESC
+    `);
+
+    const rows = stmt.all(repoPath, cutoffTime) as Array<{
+      health_score: number;
+      factors: string;
+      recorded_at: number;
+    }>;
+
+    return rows.map((row) => ({
+      health_score: row.health_score,
+      factors: JSON.parse(row.factors),
+      recorded_at: row.recorded_at,
+    }));
+  }
+
+  /**
+   * Log an action execution
+   */
+  logAction(
+    actionId: string,
+    actionType: string,
+    status: 'success' | 'failed' | 'cancelled',
+    reposAffected: number = 0,
+    rollbackAvailable: boolean = false,
+    details?: Record<string, any>
+  ): number {
+    const stmt = this.db.prepare(`
+      INSERT INTO action_log (action_id, action_type, timestamp, status, repos_affected, rollback_available, details)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const result = stmt.run(
+      actionId,
+      actionType,
+      Date.now(),
+      status,
+      reposAffected,
+      rollbackAvailable ? 1 : 0,
+      details ? JSON.stringify(details) : null
+    );
+
+    return result.lastInsertRowid as number;
+  }
+
+  /**
+   * Get recent actions
+   */
+  getRecentActions(limit: number = 50): Array<{
+    id: number;
+    action_id: string;
+    action_type: string;
+    timestamp: number;
+    status: string;
+    repos_affected: number;
+    rollback_available: boolean;
+    details: Record<string, any> | null;
+  }> {
+    const stmt = this.db.prepare(`
+      SELECT id, action_id, action_type, timestamp, status, repos_affected, rollback_available, details
+      FROM action_log
+      ORDER BY timestamp DESC
+      LIMIT ?
+    `);
+
+    const rows = stmt.all(limit) as Array<{
+      id: number;
+      action_id: string;
+      action_type: string;
+      timestamp: number;
+      status: string;
+      repos_affected: number;
+      rollback_available: number;
+      details: string | null;
+    }>;
+
+    return rows.map((row) => ({
+      ...row,
+      rollback_available: row.rollback_available === 1,
+      details: row.details ? JSON.parse(row.details) : null,
+    }));
   }
 
   /**
