@@ -23,6 +23,7 @@ import { FilterInput } from './FilterInput.js';
 import { DetailView } from './DetailView.js';
 import { SettingsView } from './SettingsView.js';
 import { AgentView } from './AgentView.js';
+import { ConfirmationDialog } from './ConfirmationDialog.js';
 import { scanForRepos } from '../services/gitScanner.js';
 import { getMultipleRepoStatus } from '../services/gitStatus.js';
 import { configManager } from '../services/configManager.js';
@@ -54,6 +55,12 @@ export const Dashboard: React.FC = () => {
   const [agentError, setAgentError] = useState<string | null>(null);
   const [agentStatus, setAgentStatus] = useState<AgentStatus>('not_configured');
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [confirmationDialog, setConfirmationDialog] = useState<{
+    title: string;
+    message: string;
+    warnings: string[];
+    onConfirm: () => void;
+  } | null>(null);
 
   /**
    * Show notification that auto-dismisses after 3 seconds
@@ -378,6 +385,11 @@ export const Dashboard: React.FC = () => {
       setLastKeypress(input || JSON.stringify(key));
     }
 
+    // Confirmation dialog is open - handled by the dialog itself
+    if (confirmationDialog) {
+      return;
+    }
+
     // Filter is active - Escape closes it, other keys handled by TextInput
     if (filterActive) {
       if (key.escape) {
@@ -560,6 +572,38 @@ export const Dashboard: React.FC = () => {
   }, [showNotification]);
 
   /**
+   * Execute an action (internal, bypasses confirmation)
+   */
+  const executeActionInternal = useCallback((action: any, recommendation: any) => {
+    switch (action.command) {
+      case 'view':
+        // Navigate to first affected repo
+        if (recommendation.affected_repos.length > 0) {
+          const repo = repos.find((r: GitRepo) => r.path === recommendation.affected_repos[0]);
+          if (repo) {
+            setSelectedRepo(repo);
+            setView('detail');
+            showNotification(`Viewing ${repo.name}`, 'success');
+          }
+        }
+        break;
+
+      case 'refresh':
+        loadRepos();
+        showNotification('Refreshing repositories...', 'success');
+        break;
+
+      case 'analyze':
+        runAgentAnalysis(repos);
+        showNotification('Running analysis...', 'success');
+        break;
+
+      default:
+        showNotification(`Action "${action.label}" not yet implemented`, 'error');
+    }
+  }, [repos, showNotification, loadRepos, runAgentAnalysis]);
+
+  /**
    * Handle executing an action from a recommendation
    */
   const handleExecuteAction = useCallback((recommendationId: string, actionId: string) => {
@@ -583,45 +627,27 @@ export const Dashboard: React.FC = () => {
         throw new Error(validation.warnings.join('; '));
       }
 
-      // For now, only execute safe actions automatically
-      // Unsafe actions require confirmation (TODO: implement confirmation dialog)
-      if (!validation.safe) {
-        showNotification('This action requires confirmation (not yet implemented)', 'error');
+      // Safe actions execute immediately
+      if (validation.safe) {
+        executeActionInternal(action, recommendation);
         return;
       }
 
-      // Execute safe actions based on command type
-      switch (action.command) {
-        case 'view':
-          // Navigate to first affected repo
-          if (recommendation.affected_repos.length > 0) {
-            const repo = repos.find((r) => r.path === recommendation.affected_repos[0]);
-            if (repo) {
-              setSelectedRepo(repo);
-              setView('detail');
-              showNotification(`Viewing ${repo.name}`, 'success');
-            }
-          }
-          break;
-
-        case 'refresh':
-          loadRepos();
-          showNotification('Refreshing repositories...', 'success');
-          break;
-
-        case 'analyze':
-          runAgentAnalysis(repos);
-          showNotification('Running analysis...', 'success');
-          break;
-
-        default:
-          showNotification(`Action "${action.label}" not yet implemented`, 'error');
-      }
+      // Unsafe actions require confirmation
+      setConfirmationDialog({
+        title: 'Confirm Dangerous Action',
+        message: `Are you sure you want to execute "${action.label}"?`,
+        warnings: validation.warnings,
+        onConfirm: () => {
+          setConfirmationDialog(null);
+          executeActionInternal(action, recommendation);
+        },
+      });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to execute action';
       showNotification(errorMessage, 'error');
     }
-  }, [agentResponse, repos, showNotification, loadRepos, runAgentAnalysis]);
+  }, [agentResponse, executeActionInternal, showNotification]);
 
   // Debug info
   const debugInfo: DebugInfo = {
@@ -711,6 +737,19 @@ export const Dashboard: React.FC = () => {
           <Text color={notification.type === 'success' ? 'green' : 'red'}>
             {notification.message}
           </Text>
+        </Box>
+      )}
+
+      {/* Confirmation dialog */}
+      {confirmationDialog && (
+        <Box position="absolute" top={10} left={10}>
+          <ConfirmationDialog
+            title={confirmationDialog.title}
+            message={confirmationDialog.message}
+            warnings={confirmationDialog.warnings}
+            onConfirm={confirmationDialog.onConfirm}
+            onCancel={() => setConfirmationDialog(null)}
+          />
         </Box>
       )}
 
