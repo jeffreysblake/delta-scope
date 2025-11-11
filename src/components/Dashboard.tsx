@@ -577,6 +577,7 @@ export const Dashboard: React.FC = () => {
   const executeActionInternal = useCallback((action: any, recommendation: any) => {
     switch (action.command) {
       case 'view':
+      case 'navigate':
         // Navigate to first affected repo
         if (recommendation.affected_repos.length > 0) {
           const repo = repos.find((r: GitRepo) => r.path === recommendation.affected_repos[0]);
@@ -585,6 +586,30 @@ export const Dashboard: React.FC = () => {
             setView('detail');
             showNotification(`Viewing ${repo.name}`, 'success');
           }
+        } else {
+          showNotification('No repos to navigate to', 'error');
+        }
+        break;
+
+      case 'filter':
+        // Apply filter from action args
+        if (action.args?.query) {
+          setFilterQuery(action.args.query as string);
+          setFilterActive(true);
+          showNotification(`Applied filter: ${action.args.query}`, 'success');
+        } else {
+          showNotification('No filter query specified', 'error');
+        }
+        break;
+
+      case 'sort':
+        // Change sort mode from action args
+        if (action.args?.mode) {
+          const mode = action.args.mode as SortMode;
+          setSortMode(mode);
+          showNotification(`Sorted by: ${mode}`, 'success');
+        } else {
+          showNotification('No sort mode specified', 'error');
         }
         break;
 
@@ -594,8 +619,47 @@ export const Dashboard: React.FC = () => {
         break;
 
       case 'analyze':
+      case 'review':
         runAgentAnalysis(repos);
         showNotification('Running analysis...', 'success');
+        break;
+
+      case 'stash':
+        // Stash changes in affected repos (placeholder for now)
+        if (recommendation.affected_repos.length > 0) {
+          showNotification(
+            `Stashing changes in ${recommendation.affected_repos.length} repo(s) - Git operations not yet implemented`,
+            'error'
+          );
+        } else {
+          showNotification('No repos to stash', 'error');
+        }
+        break;
+
+      case 'commit':
+      case 'commit_all':
+        // Commit changes (placeholder for now)
+        if (recommendation.affected_repos.length > 0) {
+          const message = action.args?.message || 'Automated commit';
+          showNotification(
+            `Committing to ${recommendation.affected_repos.length} repo(s): "${message}" - Git operations not yet implemented`,
+            'error'
+          );
+        } else {
+          showNotification('No repos to commit', 'error');
+        }
+        break;
+
+      case 'push':
+        // Push changes (placeholder for now)
+        if (recommendation.affected_repos.length > 0) {
+          showNotification(
+            `Pushing ${recommendation.affected_repos.length} repo(s) - Git operations not yet implemented`,
+            'error'
+          );
+        } else {
+          showNotification('No repos to push', 'error');
+        }
         break;
 
       default:
