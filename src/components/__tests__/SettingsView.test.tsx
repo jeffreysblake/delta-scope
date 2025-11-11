@@ -162,7 +162,7 @@ describe('SettingsView', () => {
       const { lastFrame } = render(<SettingsView config={mockConfig} onConfigChange={mockOnChange} />);
       const output = lastFrame();
       expect(output).toContain('Press Escape or c to close');
-      expect(output).toContain('d: Max Depth');
+      expect(output).toContain('d: MaxDepth');
       expect(output).toContain('i: Interval');
       expect(output).toContain('h: Hidden');
       expect(output).toContain('t: Theme');

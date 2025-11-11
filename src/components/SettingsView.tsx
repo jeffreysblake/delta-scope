@@ -11,7 +11,19 @@ interface SettingsViewProps {
   onConfigChange?: (config: Partial<AppConfig>) => void;
 }
 
-type EditableField = 'maxDepth' | 'refreshInterval' | 'showHidden' | 'theme' | null;
+type EditableField =
+  | 'maxDepth'
+  | 'refreshInterval'
+  | 'showHidden'
+  | 'theme'
+  | 'aiEnabled'
+  | 'aiProvider'
+  | 'aiApiKey'
+  | 'aiModel'
+  | 'aiAutoAnalyze'
+  | 'aiMaxRecommendations'
+  | 'aiTimeout'
+  | null;
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ config, onConfigChange }) => {
   const [editingField, setEditingField] = useState<EditableField>(null);
@@ -29,6 +41,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ config, onConfigChan
       setTempValue(config.maxDepth.toString());
     } else if (field === 'refreshInterval') {
       setTempValue(config.refreshInterval.toString());
+    } else if (field === 'aiApiKey') {
+      setTempValue(config.ai?.apiKey || '');
+    } else if (field === 'aiModel') {
+      setTempValue(config.ai?.model || 'claude-sonnet-4-5');
+    } else if (field === 'aiMaxRecommendations') {
+      setTempValue(config.ai?.maxRecommendations?.toString() || '10');
+    } else if (field === 'aiTimeout') {
+      setTempValue(config.ai?.timeout?.toString() || '30000');
     }
   }, [config]);
 
@@ -66,13 +86,51 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ config, onConfigChan
           return;
         }
         onConfigChange({ refreshInterval: value });
+      } else if (editingField === 'aiApiKey') {
+        onConfigChange({
+          ai: {
+            ...config.ai!,
+            apiKey: tempValue.trim(),
+          },
+        });
+      } else if (editingField === 'aiModel') {
+        onConfigChange({
+          ai: {
+            ...config.ai!,
+            model: tempValue.trim(),
+          },
+        });
+      } else if (editingField === 'aiMaxRecommendations') {
+        const value = parseInt(tempValue, 10);
+        if (isNaN(value) || value < 1 || value > 50) {
+          cancelEdit();
+          return;
+        }
+        onConfigChange({
+          ai: {
+            ...config.ai!,
+            maxRecommendations: value,
+          },
+        });
+      } else if (editingField === 'aiTimeout') {
+        const value = parseInt(tempValue, 10);
+        if (isNaN(value) || value < 5000 || value > 120000) {
+          cancelEdit();
+          return;
+        }
+        onConfigChange({
+          ai: {
+            ...config.ai!,
+            timeout: value,
+          },
+        });
       }
 
       cancelEdit();
     } catch {
       cancelEdit();
     }
-  }, [editingField, tempValue, onConfigChange, cancelEdit]);
+  }, [editingField, tempValue, onConfigChange, cancelEdit, config.ai]);
 
   /**
    * Toggle boolean or cyclic values
@@ -84,6 +142,31 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ config, onConfigChan
       onConfigChange({ showHidden: !config.showHidden });
     } else if (field === 'theme') {
       onConfigChange({ theme: config.theme === 'dark' ? 'light' : 'dark' });
+    } else if (field === 'aiEnabled') {
+      onConfigChange({
+        ai: {
+          ...config.ai!,
+          enabled: !config.ai!.enabled,
+        },
+      });
+    } else if (field === 'aiAutoAnalyze') {
+      onConfigChange({
+        ai: {
+          ...config.ai!,
+          autoAnalyze: !config.ai!.autoAnalyze,
+        },
+      });
+    } else if (field === 'aiProvider') {
+      // Cycle through providers
+      const providers: Array<'anthropic' | 'openai' | 'local'> = ['anthropic', 'openai', 'local'];
+      const currentIndex = providers.indexOf(config.ai!.provider);
+      const nextIndex = (currentIndex + 1) % providers.length;
+      onConfigChange({
+        ai: {
+          ...config.ai!,
+          provider: providers[nextIndex],
+        },
+      });
     }
   }, [config, onConfigChange]);
 
@@ -92,7 +175,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ config, onConfigChan
    */
   useInput((input: string, key: Key) => {
     // If editing a number field, handle typing
-    if (editingField === 'maxDepth' || editingField === 'refreshInterval') {
+    if (
+      editingField === 'maxDepth' ||
+      editingField === 'refreshInterval' ||
+      editingField === 'aiMaxRecommendations' ||
+      editingField === 'aiTimeout'
+    ) {
       if (key.return) {
         saveEdit();
       } else if (key.escape) {
@@ -100,6 +188,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ config, onConfigChan
       } else if (key.backspace || key.delete) {
         setTempValue((prev) => prev.slice(0, -1));
       } else if (input && /^\d$/.test(input)) {
+        setTempValue((prev) => prev + input);
+      }
+      return;
+    }
+
+    // If editing a text field, handle typing
+    if (editingField === 'aiApiKey' || editingField === 'aiModel') {
+      if (key.return) {
+        saveEdit();
+      } else if (key.escape) {
+        cancelEdit();
+      } else if (key.backspace || key.delete) {
+        setTempValue((prev) => prev.slice(0, -1));
+      } else if (input && input.length === 1 && /[\w\-.]/.test(input)) {
         setTempValue((prev) => prev + input);
       }
       return;
@@ -114,6 +216,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ config, onConfigChan
       toggleValue('showHidden');
     } else if (input === 't') {
       toggleValue('theme');
+    } else if (input === 'e' && config.ai) {
+      toggleValue('aiEnabled');
+    } else if (input === 'p' && config.ai) {
+      toggleValue('aiProvider');
+    } else if (input === 'k' && config.ai) {
+      startEdit('aiApiKey');
+    } else if (input === 'm' && config.ai) {
+      startEdit('aiModel');
+    } else if (input === 'a' && config.ai) {
+      toggleValue('aiAutoAnalyze');
+    } else if (input === 'n' && config.ai) {
+      startEdit('aiMaxRecommendations');
+    } else if (input === 'o' && config.ai) {
+      startEdit('aiTimeout');
     }
   });
 
@@ -247,15 +363,128 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ config, onConfigChan
         </Box>
       </Box>
 
+      {/* AI Section */}
+      {config.ai && (
+        <Box flexDirection="column" marginBottom={1}>
+          <Text bold color="yellow">
+            [AI Agent]
+          </Text>
+
+          <Box marginLeft={2} flexDirection="column">
+            <Text>
+              <Text dimColor>Enabled: </Text>
+              <Text color={config.ai.enabled ? 'green' : 'red'}>
+                {config.ai.enabled ? 'Yes' : 'No'}
+              </Text>
+              {onConfigChange && (
+                <Text dimColor> (press e to toggle)</Text>
+              )}
+            </Text>
+
+            <Text>
+              <Text dimColor>Provider: </Text>
+              <Text>{config.ai.provider}</Text>
+              {onConfigChange && (
+                <Text dimColor> (press p to cycle)</Text>
+              )}
+            </Text>
+
+            <Text>
+              <Text dimColor>API Key: </Text>
+              {editingField === 'aiApiKey' ? (
+                <>
+                  <Text color="yellow">{'*'.repeat(tempValue.length)}_</Text>
+                  <Text dimColor> (Enter to save, Esc to cancel)</Text>
+                </>
+              ) : (
+                <>
+                  <Text>{config.ai.apiKey ? '****' + config.ai.apiKey.slice(-4) : 'Not set'}</Text>
+                  {onConfigChange && (
+                    <Text dimColor> (press k to edit)</Text>
+                  )}
+                </>
+              )}
+            </Text>
+
+            <Text>
+              <Text dimColor>Model: </Text>
+              {editingField === 'aiModel' ? (
+                <>
+                  <Text color="yellow">{tempValue}_</Text>
+                  <Text dimColor> (Enter to save, Esc to cancel)</Text>
+                </>
+              ) : (
+                <>
+                  <Text>{config.ai.model}</Text>
+                  {onConfigChange && (
+                    <Text dimColor> (press m to edit)</Text>
+                  )}
+                </>
+              )}
+            </Text>
+
+            <Text>
+              <Text dimColor>Auto-Analyze: </Text>
+              <Text>{config.ai.autoAnalyze ? 'Yes' : 'No'}</Text>
+              {onConfigChange && (
+                <Text dimColor> (press a to toggle)</Text>
+              )}
+            </Text>
+
+            <Text>
+              <Text dimColor>Max Recommendations: </Text>
+              {editingField === 'aiMaxRecommendations' ? (
+                <>
+                  <Text color="yellow">{tempValue}_</Text>
+                  <Text dimColor> (Enter to save, Esc to cancel)</Text>
+                </>
+              ) : (
+                <>
+                  <Text>{config.ai.maxRecommendations}</Text>
+                  {onConfigChange && (
+                    <Text dimColor> (press n to edit)</Text>
+                  )}
+                </>
+              )}
+            </Text>
+
+            <Text>
+              <Text dimColor>Timeout: </Text>
+              {editingField === 'aiTimeout' ? (
+                <>
+                  <Text color="yellow">{tempValue}_</Text>
+                  <Text>ms</Text>
+                  <Text dimColor> (Enter to save, Esc to cancel)</Text>
+                </>
+              ) : (
+                <>
+                  <Text>{config.ai.timeout}ms</Text>
+                  {onConfigChange && (
+                    <Text dimColor> (press o to edit)</Text>
+                  )}
+                </>
+              )}
+            </Text>
+          </Box>
+        </Box>
+      )}
+
       {/* Footer */}
       <Box marginTop={1} borderStyle="single" borderColor="cyan" paddingX={1}>
         {editingField ? (
           <Text dimColor>Editing {editingField} | Enter: Save | Esc: Cancel</Text>
         ) : (
-          <Text dimColor>
-            Press Escape or c to close
-            {onConfigChange && ' | d: Max Depth | i: Interval | h: Hidden | t: Theme'}
-          </Text>
+          <Box flexDirection="column">
+            <Text dimColor>
+              Press Escape or c to close
+              {onConfigChange && ' | d: MaxDepth | i: Interval | h: Hidden | t: Theme'}
+            </Text>
+            {config.ai && onConfigChange && (
+              <Text dimColor>
+                AI: e: Enable | p: Provider | k: ApiKey | m: Model | a: AutoAnalyze | n: MaxRecs | o: Timeout
+              </Text>
+            )}
+          </Box>
         )}
       </Box>
     </Box>
