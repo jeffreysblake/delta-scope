@@ -9,7 +9,7 @@ import { homedir } from 'os';
 import { existsSync, mkdirSync } from 'fs';
 
 // Database schema version for migrations
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 interface AccessHistoryRecord {
   id?: number;
@@ -242,6 +242,78 @@ export class DatabaseService {
 
       // Record schema version
       this.db.prepare('INSERT INTO schema_version (version, applied_at) VALUES (?, ?)').run(4, Date.now());
+    }
+
+    if (fromVersion < 5) {
+      // Migration 5: Phase 5 Week 3 scheduler features (scheduled tasks, triggers, queue)
+      this.db.exec(`
+        -- Scheduled tasks for background daemon
+        CREATE TABLE IF NOT EXISTS scheduled_tasks (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          action TEXT NOT NULL,
+          schedule TEXT NOT NULL,
+          custom_cron TEXT,
+          enabled BOOLEAN NOT NULL DEFAULT 1,
+          last_run INTEGER,
+          next_run INTEGER NOT NULL,
+          params TEXT NOT NULL,
+          priority INTEGER NOT NULL DEFAULT 5,
+          created_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_next_run ON scheduled_tasks(next_run);
+        CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_enabled ON scheduled_tasks(enabled);
+
+        -- Triggered actions
+        CREATE TABLE IF NOT EXISTS triggered_actions (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          trigger TEXT NOT NULL,
+          action TEXT NOT NULL,
+          condition TEXT,
+          enabled BOOLEAN NOT NULL DEFAULT 1,
+          params TEXT NOT NULL,
+          priority INTEGER NOT NULL DEFAULT 5,
+          created_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_triggered_actions_trigger ON triggered_actions(trigger);
+        CREATE INDEX IF NOT EXISTS idx_triggered_actions_enabled ON triggered_actions(enabled);
+
+        -- Queued recommendations
+        CREATE TABLE IF NOT EXISTS queued_recommendations (
+          id TEXT PRIMARY KEY,
+          recommendation TEXT NOT NULL,
+          queued_at INTEGER NOT NULL,
+          priority TEXT NOT NULL,
+          expires_at INTEGER,
+          displayed BOOLEAN NOT NULL DEFAULT 0,
+          dismissed BOOLEAN NOT NULL DEFAULT 0
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_queued_recommendations_queued_at ON queued_recommendations(queued_at);
+        CREATE INDEX IF NOT EXISTS idx_queued_recommendations_displayed ON queued_recommendations(displayed);
+        CREATE INDEX IF NOT EXISTS idx_queued_recommendations_expires ON queued_recommendations(expires_at);
+
+        -- Task execution history
+        CREATE TABLE IF NOT EXISTS task_executions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          task_id TEXT NOT NULL,
+          started_at INTEGER NOT NULL,
+          completed_at INTEGER,
+          status TEXT NOT NULL,
+          result TEXT,
+          error TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_task_executions_task_id ON task_executions(task_id);
+        CREATE INDEX IF NOT EXISTS idx_task_executions_started_at ON task_executions(started_at);
+        CREATE INDEX IF NOT EXISTS idx_task_executions_status ON task_executions(status);
+      `);
+
+      // Record schema version
+      this.db.prepare('INSERT INTO schema_version (version, applied_at) VALUES (?, ?)').run(5, Date.now());
     }
   }
 
@@ -884,6 +956,353 @@ export class DatabaseService {
       rollback_available: row.rollback_available === 1,
       details: row.details ? JSON.parse(row.details) : null,
     }));
+  }
+
+  /**
+   * Save scheduled task
+   */
+  saveScheduledTask(task: {
+    id: string;
+    name: string;
+    action: string;
+    schedule: string;
+    custom_cron?: string;
+    enabled: boolean;
+    last_run: number | null;
+    next_run: number;
+    params: Record<string, any>;
+    priority: number;
+    created_at: number;
+  }): void {
+    this.db.prepare(`
+      INSERT OR REPLACE INTO scheduled_tasks
+      (id, name, action, schedule, custom_cron, enabled, last_run, next_run, params, priority, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      task.id,
+      task.name,
+      task.action,
+      task.schedule,
+      task.custom_cron || null,
+      task.enabled ? 1 : 0,
+      task.last_run,
+      task.next_run,
+      JSON.stringify(task.params),
+      task.priority,
+      task.created_at
+    );
+  }
+
+  /**
+   * Get all scheduled tasks
+   */
+  getScheduledTasks(): Array<{
+    id: string;
+    name: string;
+    action: string;
+    schedule: string;
+    custom_cron?: string;
+    enabled: boolean;
+    last_run: number | null;
+    next_run: number;
+    params: Record<string, any>;
+    priority: number;
+    created_at: number;
+  }> {
+    const rows = this.db.prepare('SELECT * FROM scheduled_tasks').all() as Array<{
+      id: string;
+      name: string;
+      action: string;
+      schedule: string;
+      custom_cron: string | null;
+      enabled: number;
+      last_run: number | null;
+      next_run: number;
+      params: string;
+      priority: number;
+      created_at: number;
+    }>;
+
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      action: row.action,
+      schedule: row.schedule,
+      custom_cron: row.custom_cron || undefined,
+      enabled: row.enabled === 1,
+      last_run: row.last_run,
+      next_run: row.next_run,
+      params: JSON.parse(row.params),
+      priority: row.priority,
+      created_at: row.created_at,
+    }));
+  }
+
+  /**
+   * Update scheduled task
+   */
+  updateScheduledTask(taskId: string, updates: Partial<{
+    name: string;
+    action: string;
+    schedule: string;
+    custom_cron: string;
+    enabled: boolean;
+    last_run: number | null;
+    next_run: number;
+    params: Record<string, any>;
+    priority: number;
+  }>): void {
+    const setClauses: string[] = [];
+    const values: any[] = [];
+
+    for (const [key, value] of Object.entries(updates)) {
+      if (key === 'enabled') {
+        setClauses.push(`${key} = ?`);
+        values.push(value ? 1 : 0);
+      } else if (key === 'params') {
+        setClauses.push(`${key} = ?`);
+        values.push(JSON.stringify(value));
+      } else {
+        setClauses.push(`${key} = ?`);
+        values.push(value);
+      }
+    }
+
+    if (setClauses.length === 0) return;
+
+    values.push(taskId);
+    this.db.prepare(`UPDATE scheduled_tasks SET ${setClauses.join(', ')} WHERE id = ?`).run(...values);
+  }
+
+  /**
+   * Delete scheduled task
+   */
+  deleteScheduledTask(taskId: string): void {
+    this.db.prepare('DELETE FROM scheduled_tasks WHERE id = ?').run(taskId);
+  }
+
+  /**
+   * Save triggered action
+   */
+  saveTriggeredAction(action: {
+    id: string;
+    name: string;
+    trigger: string;
+    action: string;
+    condition?: string;
+    enabled: boolean;
+    params: Record<string, any>;
+    priority: number;
+    created_at: number;
+  }): void {
+    this.db.prepare(`
+      INSERT OR REPLACE INTO triggered_actions
+      (id, name, trigger, action, condition, enabled, params, priority, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      action.id,
+      action.name,
+      action.trigger,
+      action.action,
+      action.condition || null,
+      action.enabled ? 1 : 0,
+      JSON.stringify(action.params),
+      action.priority,
+      action.created_at
+    );
+  }
+
+  /**
+   * Get all triggered actions
+   */
+  getTriggeredActions(): Array<{
+    id: string;
+    name: string;
+    trigger: string;
+    action: string;
+    condition?: string;
+    enabled: boolean;
+    params: Record<string, any>;
+    priority: number;
+    created_at: number;
+  }> {
+    const rows = this.db.prepare('SELECT * FROM triggered_actions').all() as Array<{
+      id: string;
+      name: string;
+      trigger: string;
+      action: string;
+      condition: string | null;
+      enabled: number;
+      params: string;
+      priority: number;
+      created_at: number;
+    }>;
+
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      trigger: row.trigger,
+      action: row.action,
+      condition: row.condition || undefined,
+      enabled: row.enabled === 1,
+      params: JSON.parse(row.params),
+      priority: row.priority,
+      created_at: row.created_at,
+    }));
+  }
+
+  /**
+   * Delete triggered action
+   */
+  deleteTriggeredAction(actionId: string): void {
+    this.db.prepare('DELETE FROM triggered_actions WHERE id = ?').run(actionId);
+  }
+
+  /**
+   * Save queued recommendation
+   */
+  saveQueuedRecommendation(queued: {
+    id: string;
+    recommendation: any;
+    queued_at: number;
+    priority: string;
+    expires_at: number | null;
+    displayed: boolean;
+    dismissed: boolean;
+  }): void {
+    this.db.prepare(`
+      INSERT OR REPLACE INTO queued_recommendations
+      (id, recommendation, queued_at, priority, expires_at, displayed, dismissed)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      queued.id,
+      JSON.stringify(queued.recommendation),
+      queued.queued_at,
+      queued.priority,
+      queued.expires_at,
+      queued.displayed ? 1 : 0,
+      queued.dismissed ? 1 : 0
+    );
+  }
+
+  /**
+   * Get all queued recommendations
+   */
+  getQueuedRecommendations(): Array<{
+    id: string;
+    recommendation: any;
+    queued_at: number;
+    priority: 'high' | 'medium' | 'low';
+    expires_at: number | null;
+    displayed: boolean;
+    dismissed: boolean;
+  }> {
+    const rows = this.db.prepare('SELECT * FROM queued_recommendations').all() as Array<{
+      id: string;
+      recommendation: string;
+      queued_at: number;
+      priority: string;
+      expires_at: number | null;
+      displayed: number;
+      dismissed: number;
+    }>;
+
+    return rows.map((row) => ({
+      id: row.id,
+      recommendation: JSON.parse(row.recommendation),
+      queued_at: row.queued_at,
+      priority: row.priority as 'high' | 'medium' | 'low',
+      expires_at: row.expires_at,
+      displayed: row.displayed === 1,
+      dismissed: row.dismissed === 1,
+    }));
+  }
+
+  /**
+   * Update queued recommendation
+   */
+  updateQueuedRecommendation(queuedId: string, updates: { displayed?: boolean; dismissed?: boolean }): void {
+    const setClauses: string[] = [];
+    const values: any[] = [];
+
+    if (updates.displayed !== undefined) {
+      setClauses.push('displayed = ?');
+      values.push(updates.displayed ? 1 : 0);
+    }
+
+    if (updates.dismissed !== undefined) {
+      setClauses.push('dismissed = ?');
+      values.push(updates.dismissed ? 1 : 0);
+    }
+
+    if (setClauses.length === 0) return;
+
+    values.push(queuedId);
+    this.db.prepare(`UPDATE queued_recommendations SET ${setClauses.join(', ')} WHERE id = ?`).run(...values);
+  }
+
+  /**
+   * Delete queued recommendation
+   */
+  deleteQueuedRecommendation(queuedId: string): void {
+    this.db.prepare('DELETE FROM queued_recommendations WHERE id = ?').run(queuedId);
+  }
+
+  /**
+   * Save task execution
+   */
+  saveTaskExecution(execution: {
+    task_id: string;
+    started_at: number;
+    completed_at: number | null;
+    status: string;
+    result: string | null;
+    error: string | null;
+  }): void {
+    this.db.prepare(`
+      INSERT INTO task_executions
+      (task_id, started_at, completed_at, status, result, error)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+      execution.task_id,
+      execution.started_at,
+      execution.completed_at,
+      execution.status,
+      execution.result,
+      execution.error
+    );
+  }
+
+  /**
+   * Get task executions
+   */
+  getTaskExecutions(taskId?: string, limit: number = 50): Array<{
+    task_id: string;
+    started_at: number;
+    completed_at: number | null;
+    status: string;
+    result: string | null;
+    error: string | null;
+  }> {
+    let query = 'SELECT task_id, started_at, completed_at, status, result, error FROM task_executions';
+    const params: any[] = [];
+
+    if (taskId) {
+      query += ' WHERE task_id = ?';
+      params.push(taskId);
+    }
+
+    query += ' ORDER BY started_at DESC LIMIT ?';
+    params.push(limit);
+
+    return this.db.prepare(query).all(...params) as Array<{
+      task_id: string;
+      started_at: number;
+      completed_at: number | null;
+      status: string;
+      result: string | null;
+      error: string | null;
+    }>;
   }
 
   /**
