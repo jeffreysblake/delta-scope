@@ -275,21 +275,27 @@ See [ROADMAP.md](./ROADMAP.md) and [AGENTIC_ROADMAP.md](./AGENTIC_ROADMAP.md) fo
 - ✅ Phase 3.5: Agent actions (dismiss, execute with safety checks)
 - ✅ Phase 4: Enhanced intelligence (pattern detection, anomaly detection, health scoring, learning)
 - ✅ Phase 5 (Weeks 1-2): Agent actions (safe actions, git operations, comprehensive safety validation)
+- ✅ Phase 6 (Weeks 1-2): Proactive intelligence (monitoring, alerts, predictive features)
 
-### Coming Soon
-- 🚧 Phase 5 (Week 3): Background agent & scheduling
-- 🚧 Phase 6: Proactive monitoring (alerts, predictions, integrations)
+### Future Enhancements
+- 🔮 Phase 5 (Week 3): Background agent & scheduling
+- 🔮 Phase 6 (Week 3): External integrations (GitHub/GitLab API, Slack, VS Code)
 
 ## Database
 
 Delta-scope uses SQLite for persistence:
 - **Location**: `~/.local/share/delta-scope/delta-scope.db` (Linux/macOS)
-- **Schema**: Version 3 (automatic migrations)
+- **Schema**: Version 4 (automatic migrations)
 - **Tables**:
   - `access_history`: Frecency tracking
   - `search_history`: Search autocomplete
   - `context_snapshots`: AI analysis history
   - `dismissed_recommendations`: User preferences
+  - `workflow_patterns`: Detected workflow patterns (Phase 4)
+  - `recommendation_feedback`: Learning from user responses (Phase 4)
+  - `anomalies`: Detected repository anomalies (Phase 4)
+  - `repo_health_history`: Health score tracking over time (Phase 4)
+  - `action_log`: Audit trail of agent actions (Phase 4/5)
 - **Cleanup**: Auto-cleanup of data older than 90 days
 
 ## Testing
