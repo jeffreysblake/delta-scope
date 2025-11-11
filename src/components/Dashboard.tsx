@@ -30,6 +30,7 @@ import { configManager } from '../services/configManager.js';
 import { getDatabaseService, closeDatabaseService } from '../services/database.js';
 import { getAIAgentService } from '../services/aiAgent.js';
 import { buildAgentContext } from '../services/agentContext.js';
+import { getActionExecutorService, type ActionDefinition, type ActionType } from '../services/actionExecutor.js';
 import type { AgentResponse, AgentStatus } from '../types/agent.js';
 
 const isDev = process.env.DEV === 'true';
@@ -574,11 +575,11 @@ export const Dashboard: React.FC = () => {
   /**
    * Execute an action (internal, bypasses confirmation)
    */
-  const executeActionInternal = useCallback((action: any, recommendation: any) => {
+  const executeActionInternal = useCallback(async (action: any, recommendation: any) => {
+    // Handle simple UI actions first
     switch (action.command) {
       case 'view':
       case 'navigate':
-        // Navigate to first affected repo
         if (recommendation.affected_repos.length > 0) {
           const repo = repos.find((r: GitRepo) => r.path === recommendation.affected_repos[0]);
           if (repo) {
@@ -589,10 +590,9 @@ export const Dashboard: React.FC = () => {
         } else {
           showNotification('No repos to navigate to', 'error');
         }
-        break;
+        return;
 
       case 'filter':
-        // Apply filter from action args
         if (action.args?.query) {
           setFilterQuery(action.args.query as string);
           setFilterActive(true);
@@ -600,10 +600,9 @@ export const Dashboard: React.FC = () => {
         } else {
           showNotification('No filter query specified', 'error');
         }
-        break;
+        return;
 
       case 'sort':
-        // Change sort mode from action args
         if (action.args?.mode) {
           const mode = action.args.mode as SortMode;
           setSortMode(mode);
@@ -611,59 +610,74 @@ export const Dashboard: React.FC = () => {
         } else {
           showNotification('No sort mode specified', 'error');
         }
-        break;
+        return;
 
       case 'refresh':
         loadRepos();
         showNotification('Refreshing repositories...', 'success');
-        break;
+        return;
 
       case 'analyze':
       case 'review':
         runAgentAnalysis(repos);
         showNotification('Running analysis...', 'success');
-        break;
+        return;
+    }
 
-      case 'stash':
-        // Stash changes in affected repos (placeholder for now)
-        if (recommendation.affected_repos.length > 0) {
-          showNotification(
-            `Stashing changes in ${recommendation.affected_repos.length} repo(s) - Git operations not yet implemented`,
-            'error'
-          );
-        } else {
-          showNotification('No repos to stash', 'error');
-        }
-        break;
+    // For complex actions, use ActionExecutor
+    try {
+      const config = configManager.get();
+      const executor = getActionExecutorService(config);
 
-      case 'commit':
-      case 'commit_all':
-        // Commit changes (placeholder for now)
-        if (recommendation.affected_repos.length > 0) {
-          const message = action.args?.message || 'Automated commit';
-          showNotification(
-            `Committing to ${recommendation.affected_repos.length} repo(s): "${message}" - Git operations not yet implemented`,
-            'error'
-          );
-        } else {
-          showNotification('No repos to commit', 'error');
-        }
-        break;
+      // Map command to ActionType
+      const actionTypeMap: Record<string, ActionType> = {
+        'batch_favorite': 'batch_favorite',
+        'save_filter': 'save_filter_preset',
+        'generate_report': 'generate_report',
+        'optimize_config': 'optimize_config',
+        'smart_commit': 'smart_commit',
+        'commit': 'smart_commit',
+        'commit_all': 'smart_commit',
+        'batch_pull': 'batch_pull',
+        'pull': 'batch_pull',
+        'stash': 'batch_stash',
+        'branch_cleanup': 'branch_cleanup',
+      };
 
-      case 'push':
-        // Push changes (placeholder for now)
-        if (recommendation.affected_repos.length > 0) {
-          showNotification(
-            `Pushing ${recommendation.affected_repos.length} repo(s) - Git operations not yet implemented`,
-            'error'
-          );
-        } else {
-          showNotification('No repos to push', 'error');
-        }
-        break;
-
-      default:
+      const actionType = actionTypeMap[action.command];
+      if (!actionType) {
         showNotification(`Action "${action.label}" not yet implemented`, 'error');
+        return;
+      }
+
+      // Create ActionDefinition
+      const actionDef: ActionDefinition = {
+        id: action.id,
+        type: actionType,
+        label: action.label,
+        description: recommendation.description || '',
+        params: {
+          repo_paths: recommendation.affected_repos,
+          ...action.args,
+        },
+      };
+
+      // Execute action
+      showNotification(`Executing: ${action.label}...`, 'info');
+      const result = await executor.executeAction(actionDef, repos);
+
+      if (result.success) {
+        showNotification(result.message, 'success');
+        // Refresh repos if they were modified
+        if (result.affected_repos.length > 0) {
+          loadRepos();
+        }
+      } else {
+        showNotification(result.message, 'error');
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Action failed';
+      showNotification(errorMessage, 'error');
     }
   }, [repos, showNotification, loadRepos, runAgentAnalysis]);
 
