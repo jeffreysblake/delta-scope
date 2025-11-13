@@ -4,6 +4,7 @@
  */
 
 import simpleGit, { SimpleGit } from 'simple-git';
+import { retryGitOperation, retryGitPush } from '../utils/retry.js';
 
 export interface GitOperationResult {
   success: boolean;
@@ -22,7 +23,7 @@ export async function stashChanges(repoPath: string, message?: string): Promise<
     const git: SimpleGit = simpleGit(repoPath);
 
     // Check if there are changes to stash
-    const status = await git.status();
+    const status = await retryGitOperation(() => git.status());
     const hasChanges =
       status.modified.length > 0 ||
       status.created.length > 0 ||
@@ -37,9 +38,9 @@ export async function stashChanges(repoPath: string, message?: string): Promise<
       };
     }
 
-    // Perform stash
+    // Perform stash with retry
     const stashMessage = message || `delta-scope auto-stash ${new Date().toISOString()}`;
-    await git.stash(['push', '-m', stashMessage]);
+    await retryGitOperation(() => git.stash(['push', '-m', stashMessage]));
 
     return {
       success: true,
@@ -71,7 +72,7 @@ export async function commitChanges(
     const git: SimpleGit = simpleGit(repoPath);
 
     // Check if there are changes to commit
-    const status = await git.status();
+    const status = await retryGitOperation(() => git.status());
 
     if (addAll) {
       // Check if there are any changes at all
@@ -89,8 +90,8 @@ export async function commitChanges(
         };
       }
 
-      // Add all changes
-      await git.add('.');
+      // Add all changes with retry
+      await retryGitOperation(() => git.add('.'));
     } else {
       // Only commit staged changes
       if (status.staged.length === 0) {
@@ -101,8 +102,8 @@ export async function commitChanges(
       }
     }
 
-    // Perform commit
-    const result = await git.commit(message);
+    // Perform commit with retry
+    const result = await retryGitOperation(() => git.commit(message));
 
     return {
       success: true,
@@ -134,10 +135,10 @@ export async function pushChanges(
     const git: SimpleGit = simpleGit(repoPath);
 
     // Get current branch if not specified
-    const currentBranch = branch || (await git.revparse(['--abbrev-ref', 'HEAD']));
+    const currentBranch = branch || (await retryGitOperation(() => git.revparse(['--abbrev-ref', 'HEAD'])));
 
     // Check if there are commits to push
-    const status = await git.status();
+    const status = await retryGitOperation(() => git.status());
     if (status.ahead === 0) {
       return {
         success: false,
@@ -145,8 +146,8 @@ export async function pushChanges(
       };
     }
 
-    // Perform push
-    await git.push(remote, currentBranch);
+    // Perform push with retry (4 retries with 2s, 4s, 8s, 16s backoff)
+    await retryGitPush(() => git.push(remote, currentBranch));
 
     return {
       success: true,

@@ -6,7 +6,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Box, useInput, Text, useApp, type Key } from 'ink';
 import Spinner from 'ink-spinner';
 import fuzzy from 'fuzzy';
-import type { GitRepo, RepoGroup, View, SortMode, DebugInfo, AppConfig } from '../types/index.js';
+import type { GitRepo, RepoGroup, View, SortMode, DebugInfo, AppConfig, AIConfig } from '../types/index.js';
 
 /**
  * Navigation item in flattened list
@@ -24,6 +24,10 @@ import { DetailView } from './DetailView.js';
 import { SettingsView } from './SettingsView.js';
 import { AgentView } from './AgentView.js';
 import { ConfirmationDialog } from './ConfirmationDialog.js';
+import { ValidationWarning } from './ValidationWarning.js';
+import { Notification, type NotificationType } from './Notification.js';
+import { ErrorNotification } from './ErrorNotification.js';
+import { AISetupWizard } from './AISetupWizard.js';
 import { scanForRepos } from '../services/gitScanner.js';
 import { getMultipleRepoStatus } from '../services/gitStatus.js';
 import { configManager } from '../services/configManager.js';
@@ -31,6 +35,7 @@ import { getDatabaseService, closeDatabaseService } from '../services/database.j
 import { getAIAgentService } from '../services/aiAgent.js';
 import { buildAgentContext } from '../services/agentContext.js';
 import { executeGitOperationBatch } from '../services/gitOperations.js';
+import { validateConfig, type ValidationIssue } from '../services/configValidator.js';
 import type { AgentResponse, AgentStatus, AgentRecommendation, RecommendedAction } from '../types/agent.js';
 
 const isDev = process.env.DEV === 'true';
@@ -58,21 +63,49 @@ export const Dashboard: React.FC = () => {
   const [agentLoading, setAgentLoading] = useState(false);
   const [agentError, setAgentError] = useState<string | null>(null);
   const [agentStatus, setAgentStatus] = useState<AgentStatus>('not_configured');
-  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [notification, setNotification] = useState<{ message: string; type: NotificationType } | null>(null);
   const [confirmationDialog, setConfirmationDialog] = useState<{
     title: string;
     message: string;
     warnings: string[];
     onConfirm: () => void;
   } | null>(null);
+  const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>([]);
+  const [showValidation, setShowValidation] = useState(false);
+  const [showAIWizard, setShowAIWizard] = useState(false);
 
   /**
    * Show notification that auto-dismisses after 3 seconds
    */
-  const showNotification = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+  const showNotification = useCallback((message: string, type: NotificationType = 'success') => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 3000);
   }, []);
+
+  /**
+   * Handle AI wizard completion
+   */
+  const handleAIWizardComplete = useCallback((aiConfig: AIConfig) => {
+    // Save AI config
+    const currentConfig = configManager.get();
+    configManager.set({ ...currentConfig, ai: aiConfig });
+
+    // Update agent service
+    const agentService = getAIAgentService(aiConfig);
+    setAgentStatus(agentService.getStatus());
+
+    // Close wizard and show success message
+    setShowAIWizard(false);
+    showNotification('AI configuration saved successfully!', 'success');
+  }, [showNotification]);
+
+  /**
+   * Handle AI wizard skip
+   */
+  const handleAIWizardSkip = useCallback(() => {
+    setShowAIWizard(false);
+    showNotification('AI setup skipped. You can configure it later in Settings.', 'info');
+  }, [showNotification]);
 
   /**
    * Filter dismissed recommendations from agent response
@@ -251,6 +284,33 @@ export const Dashboard: React.FC = () => {
 
   // Initialize database and load repos on mount
   useEffect(() => {
+    // Validate configuration on startup
+    const config = configManager.get();
+    const validation = validateConfig(config);
+
+    if (validation.issues.length > 0) {
+      setValidationIssues(validation.issues);
+      setShowValidation(true);
+    }
+
+    // Check if AI setup wizard should be shown
+    // Only show if validation can proceed (no blocking errors) and AI is not configured
+    if (validation.canProceed) {
+      const aiEnabled = config.ai?.enabled ?? false;
+      const aiConfigured =
+        config.ai?.provider &&
+        config.ai?.model &&
+        (config.ai.provider === 'local' || config.ai?.apiKey);
+
+      // Show wizard if AI is not enabled or not properly configured
+      if (!aiEnabled || !aiConfigured) {
+        // Delay showing wizard until after validation is dismissed
+        setTimeout(() => {
+          setShowAIWizard(true);
+        }, 500);
+      }
+    }
+
     // Initialize database service (singleton)
     const db = getDatabaseService();
 
@@ -396,6 +456,23 @@ export const Dashboard: React.FC = () => {
   useInput((input: string, key: Key) => {
     if (isDev) {
       setLastKeypress(input || JSON.stringify(key));
+    }
+
+    // Validation warning is showing - any key dismisses it
+    if (showValidation) {
+      setShowValidation(false);
+      return;
+    }
+
+    // Error is showing - 'r' retries, any other key dismisses
+    if (error) {
+      if (input === 'r') {
+        setError(null);
+        loadRepos();
+      } else {
+        setError(null);
+      }
+      return;
     }
 
     // Confirmation dialog is open - handled by the dialog itself
@@ -815,9 +892,15 @@ export const Dashboard: React.FC = () => {
         )}
 
         {error && (
-          <Box borderStyle="bold" borderColor="red" padding={1}>
-            <Text color="red">Error: {error}</Text>
-          </Box>
+          <ErrorNotification
+            context={{
+              error,
+              category: 'general',
+              retryable: true,
+            }}
+            onDismiss={() => setError(null)}
+            onRetry={loadRepos}
+          />
         )}
 
         {!isLoading && !error && view === 'home' && (
@@ -861,15 +944,11 @@ export const Dashboard: React.FC = () => {
 
       {/* Notification display */}
       {notification && (
-        <Box
-          borderStyle="single"
-          borderColor={notification.type === 'success' ? 'green' : 'red'}
-          paddingX={1}
-        >
-          <Text color={notification.type === 'success' ? 'green' : 'red'}>
-            {notification.message}
-          </Text>
-        </Box>
+        <Notification
+          message={notification.message}
+          type={notification.type}
+          dismissible={false}
+        />
       )}
 
       {/* Confirmation dialog */}
@@ -881,6 +960,16 @@ export const Dashboard: React.FC = () => {
           onConfirm={confirmationDialog.onConfirm}
           onCancel={() => setConfirmationDialog(null)}
         />
+      )}
+
+      {/* Validation warning */}
+      {showValidation && validationIssues.length > 0 && (
+        <ValidationWarning issues={validationIssues} />
+      )}
+
+      {/* AI Setup Wizard */}
+      {showAIWizard && (
+        <AISetupWizard onComplete={handleAIWizardComplete} onSkip={handleAIWizardSkip} />
       )}
 
       <Footer view={view} />

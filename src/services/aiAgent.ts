@@ -22,6 +22,7 @@ import {
 } from './prompts.js';
 import { getDatabaseService } from './database.js';
 import { serializeContext, truncateContext } from './agentContext.js';
+import { retryNetworkOperation } from '../utils/retry.js';
 
 /**
  * Safe commands that don't require confirmation
@@ -125,40 +126,42 @@ export class AIAgentService {
   }
 
   /**
-   * Call AI provider (Anthropic or OpenAI-compatible)
+   * Call AI provider (Anthropic or OpenAI-compatible) with retry logic
    */
   private async callAI(systemPrompt: string, userPrompt: string, maxTokens = 4096): Promise<string> {
-    if (this.config.provider === 'anthropic' && this.anthropic) {
-      const response = await this.anthropic.messages.create({
-        model: this.config.model,
-        max_tokens: maxTokens,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userPrompt }],
-      });
+    return retryNetworkOperation(async () => {
+      if (this.config.provider === 'anthropic' && this.anthropic) {
+        const response = await this.anthropic.messages.create({
+          model: this.config.model,
+          max_tokens: maxTokens,
+          system: systemPrompt,
+          messages: [{ role: 'user', content: userPrompt }],
+        });
 
-      const content = response.content?.[0];
-      if (!content || content.type !== 'text') {
-        throw new Error('Unexpected response type from Anthropic');
-      }
-      return content.text;
-    } else if ((this.config.provider === 'openai' || this.config.provider === 'local') && this.openai) {
-      const response = await this.openai.chat.completions.create({
-        model: this.config.model,
-        max_tokens: maxTokens,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-      });
+        const content = response.content?.[0];
+        if (!content || content.type !== 'text') {
+          throw new Error('Unexpected response type from Anthropic');
+        }
+        return content.text;
+      } else if ((this.config.provider === 'openai' || this.config.provider === 'local') && this.openai) {
+        const response = await this.openai.chat.completions.create({
+          model: this.config.model,
+          max_tokens: maxTokens,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+        });
 
-      const content = response.choices[0]?.message?.content;
-      if (!content) {
-        throw new Error('No content in OpenAI response');
+        const content = response.choices[0]?.message?.content;
+        if (!content) {
+          throw new Error('No content in OpenAI response');
+        }
+        return content;
+      } else {
+        throw new Error(`Provider ${this.config.provider} not initialized`);
       }
-      return content;
-    } else {
-      throw new Error(`Provider ${this.config.provider} not initialized`);
-    }
+    });
   }
 
   /**
