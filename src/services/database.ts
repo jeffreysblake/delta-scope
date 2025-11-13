@@ -474,6 +474,7 @@ export class DatabaseService {
 
   /**
    * Get the session start time
+   * @returns Date object representing when this database session started
    */
   getSessionStart(): Date {
     return this.sessionStart;

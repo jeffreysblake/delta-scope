@@ -139,6 +139,8 @@ function buildScanSummary(repos: EnrichedRepo[]): ScanSummary {
 
 /**
  * Build user history from database
+ * @param db - Database service instance
+ * @returns UserHistory object containing frecency data, recent repos, searches, and actions
  */
 function buildUserHistory(db: ReturnType<typeof getDatabaseService>): UserHistory {
   // Get top repos by frecency
@@ -182,7 +184,10 @@ function buildUserHistory(db: ReturnType<typeof getDatabaseService>): UserHistor
 }
 
 /**
- * Build complete agent context
+ * Build complete agent context for AI analysis
+ * @param repos - Array of git repositories with status information
+ * @param config - Application configuration including AI settings
+ * @returns Complete AgentContext with scan data, user history, and environment info
  */
 export function buildAgentContext(
   repos: GitRepo[],

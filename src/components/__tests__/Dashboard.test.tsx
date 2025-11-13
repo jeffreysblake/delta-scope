@@ -724,7 +724,6 @@ describe('Dashboard', () => {
           expect(lastFrame()).not.toContain('Loading repositories');
         });
 
-        const initialFrame = lastFrame();
         stdin.write('q');
 
         // After pressing 'q', app should exit

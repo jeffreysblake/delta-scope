@@ -13,6 +13,9 @@ export interface GitOperationResult {
 
 /**
  * Stash uncommitted changes in a repository
+ * @param repoPath - Absolute path to the git repository
+ * @param message - Optional custom stash message (defaults to auto-generated timestamp)
+ * @returns Promise with operation result containing success status and details
  */
 export async function stashChanges(repoPath: string, message?: string): Promise<GitOperationResult> {
   try {
@@ -54,6 +57,10 @@ export async function stashChanges(repoPath: string, message?: string): Promise<
 
 /**
  * Commit changes in a repository
+ * @param repoPath - Absolute path to the git repository
+ * @param message - Commit message
+ * @param addAll - If true, stages all changes before committing (git add .)
+ * @returns Promise with operation result containing success status and commit details
  */
 export async function commitChanges(
   repoPath: string,
@@ -113,6 +120,10 @@ export async function commitChanges(
 
 /**
  * Push changes to remote repository
+ * @param repoPath - Absolute path to the git repository
+ * @param remote - Remote name (defaults to 'origin')
+ * @param branch - Branch name (defaults to current branch)
+ * @returns Promise with operation result containing success status and push details
  */
 export async function pushChanges(
   repoPath: string,
@@ -152,7 +163,15 @@ export async function pushChanges(
 }
 
 /**
- * Execute multiple git operations across multiple repositories
+ * Execute multiple git operations across multiple repositories in batch
+ * @param repoPaths - Array of absolute paths to git repositories
+ * @param operation - Type of git operation to perform
+ * @param options - Operation-specific options
+ * @param options.message - Commit or stash message
+ * @param options.addAll - Whether to stage all changes before committing
+ * @param options.remote - Remote name for push operations
+ * @param options.branch - Branch name for push operations
+ * @returns Promise with Map of repo paths to operation results
  */
 export async function executeGitOperationBatch(
   repoPaths: string[],
