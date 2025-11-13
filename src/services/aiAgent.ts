@@ -136,8 +136,8 @@ export class AIAgentService {
         messages: [{ role: 'user', content: userPrompt }],
       });
 
-      const content = response.content[0];
-      if (content.type !== 'text') {
+      const content = response.content?.[0];
+      if (!content || content.type !== 'text') {
         throw new Error('Unexpected response type from Anthropic');
       }
       return content.text;
