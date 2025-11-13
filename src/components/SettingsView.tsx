@@ -211,7 +211,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ config, onConfigChan
         cancelEdit();
       } else if (key.backspace || key.delete) {
         setTempValue((prev) => prev.slice(0, -1));
-      } else if (input && input.length === 1 && /[\w\-:.\/]/.test(input)) {
+      } else if (input && input.length === 1 && /[\w\-:./]/.test(input)) {
         setTempValue((prev) => prev + input);
       }
       return;

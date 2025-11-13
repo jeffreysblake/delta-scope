@@ -160,7 +160,7 @@ describe('DatabaseService', () => {
       expect(score2).toBe(100); // 100 (recent weight) * 1.0
     });
 
-    it('should apply time-based decay', (ctx) => {
+    it('should apply time-based decay', (_ctx) => {
       // Recent access
       db.recordAccess('/path/to/recent', 'view');
 
