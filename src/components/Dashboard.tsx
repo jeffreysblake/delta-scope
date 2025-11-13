@@ -3,10 +3,10 @@
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Box, useInput, Text, type Key } from 'ink';
+import { Box, useInput, Text, useApp, type Key } from 'ink';
 import Spinner from 'ink-spinner';
 import fuzzy from 'fuzzy';
-import type { GitRepo, RepoGroup, View, SortMode, DebugInfo, AppConfig } from '../types/index.js';
+import type { GitRepo, RepoGroup, View, SortMode, DebugInfo, AppConfig, AIConfig } from '../types/index.js';
 
 /**
  * Navigation item in flattened list
@@ -24,6 +24,10 @@ import { DetailView } from './DetailView.js';
 import { SettingsView } from './SettingsView.js';
 import { AgentView } from './AgentView.js';
 import { ConfirmationDialog } from './ConfirmationDialog.js';
+import { ValidationWarning } from './ValidationWarning.js';
+import { Notification, type NotificationType } from './Notification.js';
+import { ErrorNotification } from './ErrorNotification.js';
+import { AISetupWizard } from './AISetupWizard.js';
 import { scanForRepos } from '../services/gitScanner.js';
 import { getMultipleRepoStatus } from '../services/gitStatus.js';
 import { configManager } from '../services/configManager.js';
@@ -31,11 +35,16 @@ import { getDatabaseService, closeDatabaseService } from '../services/database.j
 import { getAIAgentService } from '../services/aiAgent.js';
 import { buildAgentContext } from '../services/agentContext.js';
 import { getActionExecutorService, type ActionDefinition, type ActionType } from '../services/actionExecutor.js';
-import type { AgentResponse, AgentStatus } from '../types/agent.js';
+import { executeGitOperationBatch } from '../services/gitOperations.js';
+import { validateConfig, type ValidationIssue } from '../services/configValidator.js';
+import type { AgentResponse, AgentStatus, AgentRecommendation, RecommendedAction } from '../types/agent.js';
 
 const isDev = process.env.DEV === 'true';
 
 export const Dashboard: React.FC = () => {
+  // Hooks
+  const { exit } = useApp();
+
   // State
   const [view, setView] = useState<View>('home');
   const [repos, setRepos] = useState<GitRepo[]>([]);
@@ -55,21 +64,49 @@ export const Dashboard: React.FC = () => {
   const [agentLoading, setAgentLoading] = useState(false);
   const [agentError, setAgentError] = useState<string | null>(null);
   const [agentStatus, setAgentStatus] = useState<AgentStatus>('not_configured');
-  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [notification, setNotification] = useState<{ message: string; type: NotificationType } | null>(null);
   const [confirmationDialog, setConfirmationDialog] = useState<{
     title: string;
     message: string;
     warnings: string[];
     onConfirm: () => void;
   } | null>(null);
+  const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>([]);
+  const [showValidation, setShowValidation] = useState(false);
+  const [showAIWizard, setShowAIWizard] = useState(false);
 
   /**
    * Show notification that auto-dismisses after 3 seconds
    */
-  const showNotification = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+  const showNotification = useCallback((message: string, type: NotificationType = 'success') => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 3000);
   }, []);
+
+  /**
+   * Handle AI wizard completion
+   */
+  const handleAIWizardComplete = useCallback((aiConfig: AIConfig) => {
+    // Save AI config
+    const currentConfig = configManager.get();
+    configManager.set({ ...currentConfig, ai: aiConfig });
+
+    // Update agent service
+    const agentService = getAIAgentService(aiConfig);
+    setAgentStatus(agentService.getStatus());
+
+    // Close wizard and show success message
+    setShowAIWizard(false);
+    showNotification('AI configuration saved successfully!', 'success');
+  }, [showNotification]);
+
+  /**
+   * Handle AI wizard skip
+   */
+  const handleAIWizardSkip = useCallback(() => {
+    setShowAIWizard(false);
+    showNotification('AI setup skipped. You can configure it later in Settings.', 'info');
+  }, [showNotification]);
 
   /**
    * Filter dismissed recommendations from agent response
@@ -248,6 +285,33 @@ export const Dashboard: React.FC = () => {
 
   // Initialize database and load repos on mount
   useEffect(() => {
+    // Validate configuration on startup
+    const config = configManager.get();
+    const validation = validateConfig(config);
+
+    if (validation.issues.length > 0) {
+      setValidationIssues(validation.issues);
+      setShowValidation(true);
+    }
+
+    // Check if AI setup wizard should be shown
+    // Only show if validation can proceed (no blocking errors) and AI is not configured
+    if (validation.canProceed) {
+      const aiEnabled = config.ai?.enabled ?? false;
+      const aiConfigured =
+        config.ai?.provider &&
+        config.ai?.model &&
+        (config.ai.provider === 'local' || config.ai?.apiKey);
+
+      // Show wizard if AI is not enabled or not properly configured
+      if (!aiEnabled || !aiConfigured) {
+        // Delay showing wizard until after validation is dismissed
+        setTimeout(() => {
+          setShowAIWizard(true);
+        }, 500);
+      }
+    }
+
     // Initialize database service (singleton)
     const db = getDatabaseService();
 
@@ -262,18 +326,27 @@ export const Dashboard: React.FC = () => {
     };
   }, [loadRepos]);
 
-  // Group repos whenever they change or filter changes
-  useEffect(() => {
-    const filtered = filterRepos(repos, filterQuery);
-    const grouped = groupRepos(filtered);
-    setGroups(grouped);
+  // Compute filtered and grouped repos with useMemo for better performance
+  const memoizedFilteredRepos = useMemo(() => {
+    return filterRepos(repos, filterQuery);
+  }, [repos, filterQuery, filterRepos]);
 
-    // Record search queries (debounced implicitly by user typing)
+  const memoizedGroupedRepos = useMemo(() => {
+    return groupRepos(memoizedFilteredRepos);
+  }, [memoizedFilteredRepos, groupRepos]);
+
+  // Update groups state when computed value changes
+  useEffect(() => {
+    setGroups(memoizedGroupedRepos);
+  }, [memoizedGroupedRepos]);
+
+  // Record search queries (separate side effect)
+  useEffect(() => {
     if (filterQuery.trim() && filterActive) {
       const db = getDatabaseService();
-      db.recordSearch(filterQuery, filtered.length);
+      db.recordSearch(filterQuery, memoizedFilteredRepos.length);
     }
-  }, [repos, sortMode, filterQuery, groupRepos, filterRepos, filterActive]);
+  }, [filterQuery, filterActive, memoizedFilteredRepos.length]);
 
   // Load search history when filter becomes active
   useEffect(() => {
@@ -324,7 +397,7 @@ export const Dashboard: React.FC = () => {
   /**
    * Toggle group expansion
    */
-  const toggleGroup = (groupIndex: number) => {
+  const toggleGroup = useCallback((groupIndex: number) => {
     setGroups((prev) => {
       const newGroups = prev.map((group, idx) =>
         idx === groupIndex ? { ...group, expanded: !group.expanded } : group
@@ -352,7 +425,7 @@ export const Dashboard: React.FC = () => {
 
       return newGroups;
     });
-  };
+  }, []);
 
   /**
    * Navigate up through flattened list
@@ -371,12 +444,12 @@ export const Dashboard: React.FC = () => {
   /**
    * Cycle sort mode
    */
-  const cycleSortMode = () => {
+  const cycleSortMode = useCallback(() => {
     const modes: SortMode[] = ['status', 'name', 'recent', 'changes', 'frecency'];
     const currentIndex = modes.indexOf(sortMode);
     const nextIndex = (currentIndex + 1) % modes.length;
     setSortMode(modes[nextIndex]);
-  };
+  }, [sortMode]);
 
   /**
    * Keyboard input handler
@@ -384,6 +457,23 @@ export const Dashboard: React.FC = () => {
   useInput((input: string, key: Key) => {
     if (isDev) {
       setLastKeypress(input || JSON.stringify(key));
+    }
+
+    // Validation warning is showing - any key dismisses it
+    if (showValidation) {
+      setShowValidation(false);
+      return;
+    }
+
+    // Error is showing - 'r' retries, any other key dismisses
+    if (error) {
+      if (input === 'r') {
+        setError(null);
+        loadRepos();
+      } else {
+        setError(null);
+      }
+      return;
     }
 
     // Confirmation dialog is open - handled by the dialog itself
@@ -434,7 +524,8 @@ export const Dashboard: React.FC = () => {
 
     // Global shortcuts
     if (input === 'q') {
-      process.exit(0);
+      exit();
+      return;
     }
 
     if (input === '?') {
@@ -575,7 +666,7 @@ export const Dashboard: React.FC = () => {
   /**
    * Execute an action (internal, bypasses confirmation)
    */
-  const executeActionInternal = useCallback(async (action: any, recommendation: any) => {
+  const executeActionInternal = useCallback(async (action: RecommendedAction, recommendation: AgentRecommendation) => {
     // Handle simple UI actions first
     switch (action.command) {
       case 'view':
@@ -622,6 +713,98 @@ export const Dashboard: React.FC = () => {
         runAgentAnalysis(repos);
         showNotification('Running analysis...', 'success');
         return;
+
+      case 'stash':
+        // Stash changes in affected repos
+        if (recommendation.affected_repos.length > 0) {
+          const stashMessage = action.args?.message as string | undefined;
+          executeGitOperationBatch(recommendation.affected_repos, 'stash', { message: stashMessage })
+            .then((results) => {
+              const successCount = Array.from(results.values()).filter((r) => r.success).length;
+              const failCount = results.size - successCount;
+
+              if (successCount > 0) {
+                showNotification(
+                  `Stashed changes in ${successCount} repo(s)${failCount > 0 ? `, ${failCount} failed` : ''}`,
+                  failCount > 0 ? 'error' : 'success'
+                );
+              } else {
+                showNotification('Failed to stash changes in all repos', 'error');
+              }
+
+              // Refresh repos to show updated status
+              loadRepos();
+            })
+            .catch((err) => {
+              showNotification(`Error stashing: ${err.message}`, 'error');
+            });
+        } else {
+          showNotification('No repos to stash', 'error');
+        }
+        return;
+
+      case 'commit':
+      case 'commit_all':
+        // Commit changes
+        if (recommendation.affected_repos.length > 0) {
+          const message = (action.args?.message as string) || 'Automated commit';
+          const addAll = action.command === 'commit_all';
+
+          executeGitOperationBatch(recommendation.affected_repos, 'commit', { message, addAll })
+            .then((results) => {
+              const successCount = Array.from(results.values()).filter((r) => r.success).length;
+              const failCount = results.size - successCount;
+
+              if (successCount > 0) {
+                showNotification(
+                  `Committed changes in ${successCount} repo(s)${failCount > 0 ? `, ${failCount} failed` : ''}`,
+                  failCount > 0 ? 'error' : 'success'
+                );
+              } else {
+                showNotification('Failed to commit changes in all repos', 'error');
+              }
+
+              // Refresh repos to show updated status
+              loadRepos();
+            })
+            .catch((err) => {
+              showNotification(`Error committing: ${err.message}`, 'error');
+            });
+        } else {
+          showNotification('No repos to commit', 'error');
+        }
+        return;
+
+      case 'push':
+        // Push changes
+        if (recommendation.affected_repos.length > 0) {
+          const remote = (action.args?.remote as string) || 'origin';
+          const branch = action.args?.branch as string | undefined;
+
+          executeGitOperationBatch(recommendation.affected_repos, 'push', { remote, branch })
+            .then((results) => {
+              const successCount = Array.from(results.values()).filter((r) => r.success).length;
+              const failCount = results.size - successCount;
+
+              if (successCount > 0) {
+                showNotification(
+                  `Pushed changes in ${successCount} repo(s)${failCount > 0 ? `, ${failCount} failed` : ''}`,
+                  failCount > 0 ? 'error' : 'success'
+                );
+              } else {
+                showNotification('Failed to push changes in all repos', 'error');
+              }
+
+              // Refresh repos to show updated status
+              loadRepos();
+            })
+            .catch((err) => {
+              showNotification(`Error pushing: ${err.message}`, 'error');
+            });
+        } else {
+          showNotification('No repos to push', 'error');
+        }
+        return;
     }
 
     // For complex actions, use ActionExecutor
@@ -636,11 +819,8 @@ export const Dashboard: React.FC = () => {
         'generate_report': 'generate_report',
         'optimize_config': 'optimize_config',
         'smart_commit': 'smart_commit',
-        'commit': 'smart_commit',
-        'commit_all': 'smart_commit',
         'batch_pull': 'batch_pull',
-        'pull': 'batch_pull',
-        'stash': 'batch_stash',
+        'batch_stash': 'batch_stash',
         'branch_cleanup': 'branch_cleanup',
       };
 
@@ -761,9 +941,15 @@ export const Dashboard: React.FC = () => {
         )}
 
         {error && (
-          <Box borderStyle="bold" borderColor="red" padding={1}>
-            <Text color="red">Error: {error}</Text>
-          </Box>
+          <ErrorNotification
+            context={{
+              error,
+              category: 'general',
+              retryable: true,
+            }}
+            onDismiss={() => setError(null)}
+            onRetry={loadRepos}
+          />
         )}
 
         {!isLoading && !error && view === 'home' && (
@@ -807,28 +993,32 @@ export const Dashboard: React.FC = () => {
 
       {/* Notification display */}
       {notification && (
-        <Box
-          borderStyle="single"
-          borderColor={notification.type === 'success' ? 'green' : 'red'}
-          paddingX={1}
-        >
-          <Text color={notification.type === 'success' ? 'green' : 'red'}>
-            {notification.message}
-          </Text>
-        </Box>
+        <Notification
+          message={notification.message}
+          type={notification.type}
+          dismissible={false}
+        />
       )}
 
       {/* Confirmation dialog */}
       {confirmationDialog && (
-        <Box position="absolute" top={10} left={10}>
-          <ConfirmationDialog
-            title={confirmationDialog.title}
-            message={confirmationDialog.message}
-            warnings={confirmationDialog.warnings}
-            onConfirm={confirmationDialog.onConfirm}
-            onCancel={() => setConfirmationDialog(null)}
-          />
-        </Box>
+        <ConfirmationDialog
+          title={confirmationDialog.title}
+          message={confirmationDialog.message}
+          warnings={confirmationDialog.warnings}
+          onConfirm={confirmationDialog.onConfirm}
+          onCancel={() => setConfirmationDialog(null)}
+        />
+      )}
+
+      {/* Validation warning */}
+      {showValidation && validationIssues.length > 0 && (
+        <ValidationWarning issues={validationIssues} />
+      )}
+
+      {/* AI Setup Wizard */}
+      {showAIWizard && (
+        <AISetupWizard onComplete={handleAIWizardComplete} onSkip={handleAIWizardSkip} />
       )}
 
       <Footer view={view} />

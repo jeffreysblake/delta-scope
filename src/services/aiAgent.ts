@@ -9,7 +9,6 @@ import type { AIConfig } from '../types/index.js';
 import type {
   AgentContext,
   AgentResponse,
-  AgentRequest,
   AgentStatus,
   ValidationResult,
   ExecutionResult,
@@ -23,6 +22,7 @@ import {
 } from './prompts.js';
 import { getDatabaseService } from './database.js';
 import { serializeContext, truncateContext } from './agentContext.js';
+import { retryNetworkOperation } from '../utils/retry.js';
 
 /**
  * Safe commands that don't require confirmation
@@ -126,40 +126,42 @@ export class AIAgentService {
   }
 
   /**
-   * Call AI provider (Anthropic or OpenAI-compatible)
+   * Call AI provider (Anthropic or OpenAI-compatible) with retry logic
    */
   private async callAI(systemPrompt: string, userPrompt: string, maxTokens = 4096): Promise<string> {
-    if (this.config.provider === 'anthropic' && this.anthropic) {
-      const response = await this.anthropic.messages.create({
-        model: this.config.model,
-        max_tokens: maxTokens,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userPrompt }],
-      });
+    return retryNetworkOperation(async () => {
+      if (this.config.provider === 'anthropic' && this.anthropic) {
+        const response = await this.anthropic.messages.create({
+          model: this.config.model,
+          max_tokens: maxTokens,
+          system: systemPrompt,
+          messages: [{ role: 'user', content: userPrompt }],
+        });
 
-      const content = response.content[0];
-      if (content.type !== 'text') {
-        throw new Error('Unexpected response type from Anthropic');
-      }
-      return content.text;
-    } else if ((this.config.provider === 'openai' || this.config.provider === 'local') && this.openai) {
-      const response = await this.openai.chat.completions.create({
-        model: this.config.model,
-        max_tokens: maxTokens,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-      });
+        const content = response.content?.[0];
+        if (!content || content.type !== 'text') {
+          throw new Error('Unexpected response type from Anthropic');
+        }
+        return content.text;
+      } else if ((this.config.provider === 'openai' || this.config.provider === 'local') && this.openai) {
+        const response = await this.openai.chat.completions.create({
+          model: this.config.model,
+          max_tokens: maxTokens,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+        });
 
-      const content = response.choices[0]?.message?.content;
-      if (!content) {
-        throw new Error('No content in OpenAI response');
+        const content = response.choices[0]?.message?.content;
+        if (!content) {
+          throw new Error('No content in OpenAI response');
+        }
+        return content;
+      } else {
+        throw new Error(`Provider ${this.config.provider} not initialized`);
       }
-      return content;
-    } else {
-      throw new Error(`Provider ${this.config.provider} not initialized`);
-    }
+    });
   }
 
   /**
@@ -330,12 +332,14 @@ export class AIAgentService {
   }
 
   /**
-   * Execute an action (placeholder - actual implementation would be in Dashboard)
+   * Execute an action
+   * Note: Actual git operations are handled by Dashboard component.
+   * This method validates the action and returns metadata for execution.
    */
   async execute(
     recommendation: AgentRecommendation,
     actionId: string,
-    context: AgentContext
+    _context: AgentContext
   ): Promise<ExecutionResult> {
     const validation = this.validate(recommendation, actionId);
 
@@ -349,14 +353,30 @@ export class AIAgentService {
       };
     }
 
-    // This is a placeholder - actual execution would happen in Dashboard
-    // The Dashboard would call this to get validation, then execute the command
+    const action = recommendation.actions.find((a) => a.id === actionId);
+    if (!action) {
+      return {
+        success: false,
+        action_id: actionId,
+        message: 'Action not found in recommendation',
+        affected_repos: recommendation.affected_repos,
+        rollback_possible: false,
+      };
+    }
+
+    // For safe actions, mark as success and let Dashboard handle execution
+    // For dangerous actions, Dashboard will show confirmation dialog first
+    const isDangerous = DANGEROUS_COMMANDS.has(action.command);
+    const needsConfirmation = action.requires_confirmation || isDangerous;
+
     return {
-      success: false,
+      success: true,
       action_id: actionId,
-      message: 'Action execution must be handled by Dashboard component',
+      message: needsConfirmation
+        ? 'Action ready for execution (requires confirmation)'
+        : 'Action can be executed safely',
       affected_repos: recommendation.affected_repos,
-      rollback_possible: false,
+      rollback_possible: ['stash'].includes(action.command),
     };
   }
 

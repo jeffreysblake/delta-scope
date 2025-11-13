@@ -4,7 +4,7 @@
 
 import React, { useState } from 'react';
 import { Box, Text, useInput, type Key } from 'ink';
-import type { AgentResponse, AgentRecommendation } from '../types/agent.js';
+import type { AgentResponse } from '../types/agent.js';
 
 interface AgentViewProps {
   response: AgentResponse | null;
@@ -102,9 +102,9 @@ export const AgentView: React.FC<AgentViewProps> = ({
           ❌ Agent Error
         </Text>
         <Text color="red">{error}</Text>
-        <Text dimColor marginTop={1}>
-          Press Escape to close
-        </Text>
+        <Box marginTop={1}>
+          <Text dimColor>Press Escape to close</Text>
+        </Box>
       </Box>
     );
   }

@@ -53,15 +53,37 @@ pnpm add -g delta-scope
 
 ## Quick Start
 
+### First-time Setup
+
 ```bash
-# Start the TUI
+# 1. Start delta-scope (will create config on first run)
 delta-scope
 # or use the short alias
 ds
 
-# Configure base paths to scan
+# 2. Press 'c' to open Settings
+# 3. The app will guide you through initial configuration
+```
+
+### Adding Repository Paths
+
+**Option 1: Via Settings UI (Recommended)**
+1. Press `c` to open Settings
+2. Current base paths are shown at the top
+3. Edit `~/.config/delta-scope/settings.json` manually to add paths
+
+**Option 2: Via Command Line**
+```bash
 delta-scope add-path ~/projects
 delta-scope add-path ~/work
+```
+
+**Option 3: Edit Config File**
+Edit `~/.config/delta-scope/settings.json`:
+```json
+{
+  "basePaths": ["/home/user/projects", "/home/user/work"]
+}
 ```
 
 ## Configuration
@@ -94,52 +116,84 @@ Configuration is stored in `~/.config/delta-scope/settings.json`.
 
 ## AI Agent Setup
 
-### Option 1: Local Models (Free, Private)
+The AI agent is **optional** but provides intelligent recommendations. Choose one of these options:
+
+### Option 1: Local Models (Free, Private, Recommended)
 
 **Using lm-studio:**
 ```bash
-# 1. Download and run lm-studio
-# 2. Load a model (e.g., qwen2.5-coder, deepseek-coder, codellama)
-# 3. Start the server (default: http://localhost:1234/v1)
+# 1. Download lm-studio from https://lmstudio.ai/
+# 2. Load a code model (recommended: qwen2.5-coder, deepseek-coder)
+# 3. Click "Start Server" (default: http://localhost:1234/v1)
+# 4. Note the model name shown in lm-studio
 ```
 
 **Using ollama:**
 ```bash
-# 1. Install ollama
-# 2. Pull a model
+# 1. Install ollama from https://ollama.ai/
+curl -fsSL https://ollama.ai/install.sh | sh
+
+# 2. Pull a code model (recommended)
 ollama pull qwen2.5-coder:7b
+# Alternative models:
+# ollama pull deepseek-coder:6.7b
+# ollama pull codellama:13b
 
-# 3. Ollama runs at http://localhost:11434/v1
+# 3. Ollama server starts automatically at http://localhost:11434/v1
 ```
 
-**Configure in delta-scope:**
-- Press `c` to open Settings
-- Press `e` to enable AI
-- Press `p` to cycle to "local"
-- Press `m` to set model name (e.g., "qwen2.5-coder:7b")
-- Press `u` to set endpoint (e.g., "http://localhost:11434/v1")
-- Press `k` to set API key (use "not-needed" for local models)
-- Press `a` to toggle auto-analyze (optional)
+**Configure delta-scope for local models:**
+1. Start `delta-scope` and press `c` for Settings
+2. Press `e` to **enable AI**
+3. Press `p` to cycle provider to **"local"**
+4. Press `m` to set **model name**:
+   - For ollama: `qwen2.5-coder:7b` (or your model)
+   - For lm-studio: Copy exact name from lm-studio UI
+5. Press `u` to set **endpoint**:
+   - For ollama: `http://localhost:11434/v1`
+   - For lm-studio: `http://localhost:1234/v1`
+6. Press `k` to set API key: `not-needed`
+7. Press `a` to toggle **auto-analyze** (optional, uses AI automatically)
+8. Press `Esc` to save and exit settings
 
-### Option 2: Anthropic Claude
-```bash
-# Get API key from https://console.anthropic.com/
-```
+### Option 2: Anthropic Claude (Best Quality, Paid)
 
-Configure:
-- Provider: `anthropic`
-- Model: `claude-sonnet-4-5`
-- API Key: Your Anthropic API key
+**Setup:**
+1. Get API key from [Anthropic Console](https://console.anthropic.com/)
+2. Start `delta-scope` and press `c` for Settings
+3. Press `e` to **enable AI**
+4. Press `p` to cycle provider to **"anthropic"**
+5. Press `k` to enter your **API key** (starts with `sk-ant-`)
+6. Press `m` to set **model**: `claude-sonnet-4-5` (recommended)
+   - Alternatives: `claude-3-5-sonnet-20241022`, `claude-opus-4-0`
+7. Press `Esc` to save
 
-### Option 3: OpenAI
-```bash
-# Get API key from https://platform.openai.com/
-```
+**Recommended for:**
+- Best code analysis quality
+- Most accurate recommendations
+- Complex multi-repo workflows
 
-Configure:
-- Provider: `openai`
-- Model: `gpt-4o` or `gpt-4-turbo`
-- API Key: Your OpenAI API key
+**Cost:** ~$3 per 1M input tokens, $15 per 1M output tokens
+
+### Option 3: OpenAI (Good Balance, Paid)
+
+**Setup:**
+1. Get API key from [OpenAI Platform](https://platform.openai.com/)
+2. Start `delta-scope` and press `c` for Settings
+3. Press `e` to **enable AI**
+4. Press `p` to cycle provider to **"openai"**
+5. Press `k` to enter your **API key** (starts with `sk-`)
+6. Press `m` to set **model**: `gpt-4o` (recommended)
+   - Alternatives: `gpt-4-turbo`, `gpt-4o-mini` (cheaper)
+7. Press `u` to set **endpoint** (optional): `https://api.openai.com/v1`
+8. Press `Esc` to save
+
+**Recommended for:**
+- Good quality at lower cost than Claude
+- Faster responses
+- Existing OpenAI users
+
+**Cost:** $2.50 per 1M input tokens, $10 per 1M output tokens (gpt-4o)
 
 ## External Integrations Setup
 
@@ -272,6 +326,122 @@ The AI agent analyzes your repositories and provides recommendations like:
 - Stash work
 - Delete files
 
+## Troubleshooting
+
+### No Repositories Found
+
+**Problem:** Delta-scope shows "No repositories found"
+
+**Solutions:**
+1. Check your base paths in Settings (`c` key)
+2. Ensure paths contain git repositories (folders with `.git`)
+3. Check `maxDepth` setting - increase if repos are nested deeply
+4. Verify paths exist and you have read permissions
+
+```bash
+# Verify your config
+cat ~/.config/delta-scope/settings.json
+
+# Check if git repos exist
+find ~/projects -name ".git" -type d | head -10
+```
+
+### AI Connection Errors
+
+**Problem:** "Failed to connect to AI provider" or timeout errors
+
+**For Local Models (ollama/lm-studio):**
+```bash
+# Check if server is running
+curl http://localhost:11434/v1/models  # ollama
+curl http://localhost:1234/v1/models   # lm-studio
+
+# Restart ollama if needed
+ollama serve
+
+# Check lm-studio server is started in the UI
+```
+
+**For Cloud Providers (Anthropic/OpenAI):**
+1. Verify API key is correct (press `c` then `k`)
+2. Check internet connection
+3. Verify API key has credits/quota
+4. Try increasing timeout in Settings (`o` key, default: 30000ms)
+
+### Slow Performance
+
+**Problem:** UI feels sluggish or unresponsive
+
+**Solutions:**
+1. **Too many repos:** Increase `refreshInterval` (default 60s)
+2. **Deep scanning:** Reduce `maxDepth` in Settings (try 3-5)
+3. **AI overhead:** Disable `autoAnalyze`, trigger AI manually with `i`
+4. **Exclude patterns:** Add folders to `excludePatterns`:
+   ```json
+   "excludePatterns": ["node_modules", "dist", "build", ".venv", "target", "vendor"]
+   ```
+
+### Config Issues
+
+**Problem:** Settings not saving or corrupted config
+
+**Reset to defaults:**
+```bash
+# Backup current config
+cp ~/.config/delta-scope/settings.json ~/delta-scope-backup.json
+
+# Remove config (will be recreated with defaults)
+rm ~/.config/delta-scope/settings.json
+
+# Start delta-scope
+delta-scope
+```
+
+### Database Issues
+
+**Problem:** Errors related to SQLite or database
+
+**Reset database:**
+```bash
+# Backup database (optional)
+cp ~/.local/share/delta-scope/delta-scope.db ~/delta-scope-db-backup.db
+
+# Remove database (will be recreated)
+rm ~/.local/share/delta-scope/delta-scope.db
+
+# Start delta-scope
+delta-scope
+```
+
+### Git Operation Failures
+
+**Problem:** Actions like commit/push/stash fail
+
+**Common causes:**
+1. **No git configured:**
+   ```bash
+   git config --global user.name "Your Name"
+   git config --global user.email "you@example.com"
+   ```
+2. **Permission issues:** Check SSH keys for remote operations
+3. **Detached HEAD:** Repository may be in detached HEAD state
+4. **Merge conflicts:** Resolve conflicts manually first
+
+### Getting Help
+
+**Enable debug mode:**
+```bash
+# Run with debug panel (shows logs and errors)
+npm run dev  # if running from source
+
+# Check logs
+delta-scope --verbose  # if available
+```
+
+**Report issues:**
+- GitHub Issues: [github.com/jeffreysblake/delta-scope/issues](https://github.com/jeffreysblake/delta-scope/issues)
+- Include: OS version, delta-scope version, error messages, config (without API keys)
+
 ## Development
 
 ```bash
@@ -332,7 +502,11 @@ delta-scope/
 │   └── utils/                  # Utilities
 │       ├── colors.ts           # Color scheme
 │       └── keybindings.ts      # Keyboard shortcuts
-└── tests/                      # Test files (196 tests)
+└── tests/                      # Test files (281 tests)
+    ├── __tests__/              # Integration tests
+    ├── components/__tests__/   # Component tests
+    ├── services/__tests__/     # Service tests
+    └── utils/__tests__/        # Utility tests
 ```
 
 ## Technology Stack
@@ -341,7 +515,7 @@ delta-scope/
 - **AI**: [Anthropic SDK](https://github.com/anthropics/anthropic-sdk-typescript), [OpenAI SDK](https://github.com/openai/openai-node)
 - **Database**: [better-sqlite3](https://github.com/WiseLibs/better-sqlite3)
 - **Git**: Simple-git (for operations) + native git CLI
-- **Testing**: Vitest + ink-testing-library (196 tests, 100% passing)
+- **Testing**: Vitest + ink-testing-library (281 tests, 100% passing)
 - **Language**: TypeScript (strict mode)
 
 ## Roadmap
@@ -386,7 +560,9 @@ Delta-scope uses SQLite for persistence:
 
 See [TESTING.md](./TESTING.md) for detailed testing documentation.
 
-**Current stats:** 196 tests, 100% passing
+**Current stats:** 281 tests, 100% passing
+- **Unit tests:** 268 tests (services, components, utilities)
+- **Integration tests:** 13 tests (workflow and system integration)
 
 ## Contributing
 
