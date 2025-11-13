@@ -329,7 +329,9 @@ export class AIAgentService {
   }
 
   /**
-   * Execute an action (placeholder - actual implementation would be in Dashboard)
+   * Execute an action
+   * Note: Actual git operations are handled by Dashboard component.
+   * This method validates the action and returns metadata for execution.
    */
   async execute(
     recommendation: AgentRecommendation,
@@ -348,14 +350,30 @@ export class AIAgentService {
       };
     }
 
-    // This is a placeholder - actual execution would happen in Dashboard
-    // The Dashboard would call this to get validation, then execute the command
+    const action = recommendation.actions.find((a) => a.id === actionId);
+    if (!action) {
+      return {
+        success: false,
+        action_id: actionId,
+        message: 'Action not found in recommendation',
+        affected_repos: recommendation.affected_repos,
+        rollback_possible: false,
+      };
+    }
+
+    // For safe actions, mark as success and let Dashboard handle execution
+    // For dangerous actions, Dashboard will show confirmation dialog first
+    const isDangerous = DANGEROUS_COMMANDS.has(action.command);
+    const needsConfirmation = action.requires_confirmation || isDangerous;
+
     return {
-      success: false,
+      success: true,
       action_id: actionId,
-      message: 'Action execution must be handled by Dashboard component',
+      message: needsConfirmation
+        ? 'Action ready for execution (requires confirmation)'
+        : 'Action can be executed safely',
       affected_repos: recommendation.affected_repos,
-      rollback_possible: false,
+      rollback_possible: ['stash'].includes(action.command),
     };
   }
 

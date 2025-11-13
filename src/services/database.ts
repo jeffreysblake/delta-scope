@@ -29,6 +29,7 @@ interface FrecencyScore {
 export class DatabaseService {
   private db: Database.Database;
   private sessionId: string;
+  private sessionStart: Date;
 
   constructor(dbPath?: string) {
     // Default to ~/.local/share/delta-scope/database.db
@@ -42,7 +43,10 @@ export class DatabaseService {
 
     const fullPath = dbPath || join(defaultPath, 'database.db');
     this.db = new Database(fullPath);
-    this.sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // Track session start time
+    this.sessionStart = new Date();
+    this.sessionId = `session_${this.sessionStart.getTime()}_${Math.random().toString(36).substr(2, 9)}`;
 
     this.initializeDatabase();
   }
@@ -466,6 +470,13 @@ export class DatabaseService {
    */
   getSessionId(): string {
     return this.sessionId;
+  }
+
+  /**
+   * Get the session start time
+   */
+  getSessionStart(): Date {
+    return this.sessionStart;
   }
 }
 

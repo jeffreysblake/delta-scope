@@ -4,7 +4,12 @@
 
 import React from 'react';
 import { Dashboard } from './components/Dashboard.js';
+import { ErrorBoundary } from './components/ErrorBoundary.js';
 
 export const App: React.FC = () => {
-  return <Dashboard />;
+  return (
+    <ErrorBoundary>
+      <Dashboard />
+    </ErrorBoundary>
+  );
 };

@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Box, useInput, Text, type Key } from 'ink';
+import { Box, useInput, Text, useApp, type Key } from 'ink';
 import Spinner from 'ink-spinner';
 import fuzzy from 'fuzzy';
 import type { GitRepo, RepoGroup, View, SortMode, DebugInfo, AppConfig } from '../types/index.js';
@@ -30,11 +30,15 @@ import { configManager } from '../services/configManager.js';
 import { getDatabaseService, closeDatabaseService } from '../services/database.js';
 import { getAIAgentService } from '../services/aiAgent.js';
 import { buildAgentContext } from '../services/agentContext.js';
+import { executeGitOperationBatch } from '../services/gitOperations.js';
 import type { AgentResponse, AgentStatus, AgentRecommendation, RecommendedAction } from '../types/agent.js';
 
 const isDev = process.env.DEV === 'true';
 
 export const Dashboard: React.FC = () => {
+  // Hooks
+  const { exit } = useApp();
+
   // State
   const [view, setView] = useState<View>('home');
   const [repos, setRepos] = useState<GitRepo[]>([]);
@@ -261,18 +265,27 @@ export const Dashboard: React.FC = () => {
     };
   }, [loadRepos]);
 
-  // Group repos whenever they change or filter changes
-  useEffect(() => {
-    const filtered = filterRepos(repos, filterQuery);
-    const grouped = groupRepos(filtered);
-    setGroups(grouped);
+  // Compute filtered and grouped repos with useMemo for better performance
+  const memoizedFilteredRepos = useMemo(() => {
+    return filterRepos(repos, filterQuery);
+  }, [repos, filterQuery, filterRepos]);
 
-    // Record search queries (debounced implicitly by user typing)
+  const memoizedGroupedRepos = useMemo(() => {
+    return groupRepos(memoizedFilteredRepos);
+  }, [memoizedFilteredRepos, groupRepos]);
+
+  // Update groups state when computed value changes
+  useEffect(() => {
+    setGroups(memoizedGroupedRepos);
+  }, [memoizedGroupedRepos]);
+
+  // Record search queries (separate side effect)
+  useEffect(() => {
     if (filterQuery.trim() && filterActive) {
       const db = getDatabaseService();
-      db.recordSearch(filterQuery, filtered.length);
+      db.recordSearch(filterQuery, memoizedFilteredRepos.length);
     }
-  }, [repos, sortMode, filterQuery, groupRepos, filterRepos, filterActive]);
+  }, [filterQuery, filterActive, memoizedFilteredRepos.length]);
 
   // Load search history when filter becomes active
   useEffect(() => {
@@ -323,7 +336,7 @@ export const Dashboard: React.FC = () => {
   /**
    * Toggle group expansion
    */
-  const toggleGroup = (groupIndex: number) => {
+  const toggleGroup = useCallback((groupIndex: number) => {
     setGroups((prev) => {
       const newGroups = prev.map((group, idx) =>
         idx === groupIndex ? { ...group, expanded: !group.expanded } : group
@@ -351,7 +364,7 @@ export const Dashboard: React.FC = () => {
 
       return newGroups;
     });
-  };
+  }, []);
 
   /**
    * Navigate up through flattened list
@@ -370,12 +383,12 @@ export const Dashboard: React.FC = () => {
   /**
    * Cycle sort mode
    */
-  const cycleSortMode = () => {
+  const cycleSortMode = useCallback(() => {
     const modes: SortMode[] = ['status', 'name', 'recent', 'changes', 'frecency'];
     const currentIndex = modes.indexOf(sortMode);
     const nextIndex = (currentIndex + 1) % modes.length;
     setSortMode(modes[nextIndex]);
-  };
+  }, [sortMode]);
 
   /**
    * Keyboard input handler
@@ -433,7 +446,8 @@ export const Dashboard: React.FC = () => {
 
     // Global shortcuts
     if (input === 'q') {
-      process.exit(0);
+      exit();
+      return;
     }
 
     if (input === '?') {
@@ -625,12 +639,29 @@ export const Dashboard: React.FC = () => {
         break;
 
       case 'stash':
-        // Stash changes in affected repos (placeholder for now)
+        // Stash changes in affected repos
         if (recommendation.affected_repos.length > 0) {
-          showNotification(
-            `Stashing changes in ${recommendation.affected_repos.length} repo(s) - Git operations not yet implemented`,
-            'error'
-          );
+          const stashMessage = action.args?.message as string | undefined;
+          executeGitOperationBatch(recommendation.affected_repos, 'stash', { message: stashMessage })
+            .then((results) => {
+              const successCount = Array.from(results.values()).filter((r) => r.success).length;
+              const failCount = results.size - successCount;
+
+              if (successCount > 0) {
+                showNotification(
+                  `Stashed changes in ${successCount} repo(s)${failCount > 0 ? `, ${failCount} failed` : ''}`,
+                  failCount > 0 ? 'error' : 'success'
+                );
+              } else {
+                showNotification('Failed to stash changes in all repos', 'error');
+              }
+
+              // Refresh repos to show updated status
+              loadRepos();
+            })
+            .catch((err) => {
+              showNotification(`Error stashing: ${err.message}`, 'error');
+            });
         } else {
           showNotification('No repos to stash', 'error');
         }
@@ -638,25 +669,62 @@ export const Dashboard: React.FC = () => {
 
       case 'commit':
       case 'commit_all':
-        // Commit changes (placeholder for now)
+        // Commit changes
         if (recommendation.affected_repos.length > 0) {
-          const message = action.args?.message || 'Automated commit';
-          showNotification(
-            `Committing to ${recommendation.affected_repos.length} repo(s): "${message}" - Git operations not yet implemented`,
-            'error'
-          );
+          const message = (action.args?.message as string) || 'Automated commit';
+          const addAll = action.command === 'commit_all';
+
+          executeGitOperationBatch(recommendation.affected_repos, 'commit', { message, addAll })
+            .then((results) => {
+              const successCount = Array.from(results.values()).filter((r) => r.success).length;
+              const failCount = results.size - successCount;
+
+              if (successCount > 0) {
+                showNotification(
+                  `Committed changes in ${successCount} repo(s)${failCount > 0 ? `, ${failCount} failed` : ''}`,
+                  failCount > 0 ? 'error' : 'success'
+                );
+              } else {
+                showNotification('Failed to commit changes in all repos', 'error');
+              }
+
+              // Refresh repos to show updated status
+              loadRepos();
+            })
+            .catch((err) => {
+              showNotification(`Error committing: ${err.message}`, 'error');
+            });
         } else {
           showNotification('No repos to commit', 'error');
         }
         break;
 
       case 'push':
-        // Push changes (placeholder for now)
+        // Push changes
         if (recommendation.affected_repos.length > 0) {
-          showNotification(
-            `Pushing ${recommendation.affected_repos.length} repo(s) - Git operations not yet implemented`,
-            'error'
-          );
+          const remote = (action.args?.remote as string) || 'origin';
+          const branch = action.args?.branch as string | undefined;
+
+          executeGitOperationBatch(recommendation.affected_repos, 'push', { remote, branch })
+            .then((results) => {
+              const successCount = Array.from(results.values()).filter((r) => r.success).length;
+              const failCount = results.size - successCount;
+
+              if (successCount > 0) {
+                showNotification(
+                  `Pushed changes in ${successCount} repo(s)${failCount > 0 ? `, ${failCount} failed` : ''}`,
+                  failCount > 0 ? 'error' : 'success'
+                );
+              } else {
+                showNotification('Failed to push changes in all repos', 'error');
+              }
+
+              // Refresh repos to show updated status
+              loadRepos();
+            })
+            .catch((err) => {
+              showNotification(`Error pushing: ${err.message}`, 'error');
+            });
         } else {
           showNotification('No repos to push', 'error');
         }

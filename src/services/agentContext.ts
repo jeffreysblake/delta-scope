@@ -177,7 +177,7 @@ function buildUserHistory(db: ReturnType<typeof getDatabaseService>): UserHistor
     frequent_repos,
     recent_searches,
     frequent_actions,
-    session_start: new Date(), // TODO: Track actual session start
+    session_start: db.getSessionStart(),
   };
 }
 
