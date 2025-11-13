@@ -73,6 +73,68 @@ export interface EnvironmentInfo {
 }
 
 /**
+ * Workflow pattern detected by pattern analysis
+ */
+export interface WorkflowPatternInfo {
+  name: string;
+  type: string;
+  repos: string[];
+  frequency: number;
+  confidence: number;
+}
+
+/**
+ * Anomaly detected in repositories
+ */
+export interface AnomalyInfo {
+  repo_path: string;
+  type: string;
+  severity: string;
+  description: string;
+}
+
+/**
+ * Intelligence data from pattern detection
+ */
+export interface IntelligenceData {
+  workflow_patterns: WorkflowPatternInfo[];
+  anomalies: AnomalyInfo[];
+  health_trends: Record<string, 'improving' | 'declining' | 'stable'>;
+  recommendation_stats: {
+    total_recommendations: number;
+    acceptance_rate: number;
+  };
+}
+
+/**
+ * Monitoring data from proactive monitoring (Phase 6)
+ */
+export interface MonitoringData {
+  alerts: AlertInfo[];
+  predictions: PredictionInfo[];
+}
+
+/**
+ * Alert information
+ */
+export interface AlertInfo {
+  type: string;
+  priority: string;
+  title: string;
+  repo_path: string;
+}
+
+/**
+ * Prediction information
+ */
+export interface PredictionInfo {
+  action: string;
+  confidence: number;
+  reason: string;
+  repos: string[];
+}
+
+/**
  * Complete context bundle for AI agent
  */
 export interface AgentContext {
@@ -80,6 +142,8 @@ export interface AgentContext {
   scan_data: ScanSnapshot;
   user_history: UserHistory;
   environment: EnvironmentInfo;
+  intelligence?: IntelligenceData; // Phase 4: Enhanced intelligence
+  monitoring?: MonitoringData; // Phase 6: Proactive monitoring
 }
 
 /**

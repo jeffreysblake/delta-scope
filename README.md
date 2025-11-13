@@ -21,12 +21,27 @@
 - 🎯 **Frecency sorting**: Mozilla-style algorithm learns your most-used repos
 - 💾 **SQLite persistence**: History tracking and search autocomplete
 
-### 🤖 AI Agent (NEW!)
+### 🤖 AI Agent
 - **Intelligent recommendations**: AI analyzes all repos and suggests actions
 - **Interactive execution**: Dismiss or execute recommendations with confirmation
 - **Safety controls**: Automatic validation for dangerous operations
 - **Multiple providers**: Works with Anthropic Claude, OpenAI, or local models (lm-studio/ollama)
 - **Contextual insights**: Learns your workflow patterns and repository health
+- **Pattern detection**: Discovers sequential, concurrent, and temporal workflow patterns
+- **Anomaly detection**: Identifies stale repos, unusual changes, broken remotes, and more
+- **Health scoring**: Tracks repository health trends over time
+
+### 🚀 Background Agent & Scheduling
+- **Background daemon**: Run tasks in the background without blocking the UI
+- **Scheduled tasks**: Hourly, daily, or weekly automated tasks
+- **Triggered actions**: Execute actions on repo discovery, scan complete, launch, or idle
+- **Recommendation queue**: Queue and manage AI recommendations for later
+
+### 🔌 External Integrations
+- **GitHub/GitLab**: View PRs, MRs, and CI/CD status directly in delta-scope
+- **Slack/Discord**: Send scan summaries and AI recommendations to your team
+- **VS Code**: Open repos or workspaces in VS Code with one command
+- **tmux**: Launch terminal sessions for repos with automatic session management
 
 ## Installation
 
@@ -179,6 +194,65 @@ ollama pull qwen2.5-coder:7b
 - Existing OpenAI users
 
 **Cost:** $2.50 per 1M input tokens, $10 per 1M output tokens (gpt-4o)
+
+## External Integrations Setup
+
+Integrations are stored in `~/.config/delta-scope/integrations.json`.
+
+### GitHub/GitLab
+Requires [GitHub CLI](https://cli.github.com/) (`gh`) or [GitLab CLI](https://gitlab.com/gitlab-org/cli) (`glab`):
+```json
+{
+  "github": {
+    "enabled": true,
+    "token": "your_github_token_optional"
+  },
+  "gitlab": {
+    "enabled": true,
+    "token": "your_gitlab_token_optional",
+    "base_url": "https://gitlab.com"
+  }
+}
+```
+
+### Slack/Discord Notifications
+Get webhook URLs from your Slack/Discord settings:
+```json
+{
+  "slack": {
+    "enabled": true,
+    "webhook_url": "https://hooks.slack.com/services/...",
+    "notify_on_scan": true,
+    "notify_on_recommendations": true
+  },
+  "discord": {
+    "enabled": true,
+    "webhook_url": "https://discord.com/api/webhooks/...",
+    "notify_on_scan": true,
+    "notify_on_recommendations": true
+  }
+}
+```
+
+### VS Code Integration
+```json
+{
+  "vscode": {
+    "enabled": true,
+    "executable_path": "code"
+  }
+}
+```
+
+### tmux Integration
+```json
+{
+  "tmux": {
+    "enabled": true,
+    "session_prefix": "delta-scope"
+  }
+}
+```
 
 ## Keyboard Shortcuts
 
@@ -412,10 +486,16 @@ delta-scope/
 │   │   ├── gitScanner.ts       # Find repositories
 │   │   ├── gitStatus.ts        # Get repo status
 │   │   ├── configManager.ts    # Configuration
-│   │   ├── database.ts         # SQLite persistence
+│   │   ├── database.ts         # SQLite persistence (schema v5)
 │   │   ├── aiAgent.ts          # AI service (Anthropic/OpenAI/local)
 │   │   ├── agentContext.ts     # Context builder for AI
-│   │   └── prompts.ts          # AI prompt templates
+│   │   ├── prompts.ts          # AI prompt templates
+│   │   ├── patternDetection.ts # Workflow pattern detection
+│   │   ├── actionExecutor.ts   # Agent action execution
+│   │   ├── monitoring.ts       # Proactive monitoring & alerts
+│   │   ├── predictive.ts       # Predictive features
+│   │   ├── scheduler.ts        # Background daemon & scheduling
+│   │   └── integrations.ts     # External tool integrations
 │   ├── types/                  # TypeScript types
 │   │   ├── index.ts            # Core types
 │   │   └── agent.ts            # AI agent types
@@ -447,22 +527,33 @@ See [ROADMAP.md](./ROADMAP.md) and [AGENTIC_ROADMAP.md](./AGENTIC_ROADMAP.md) fo
 - ✅ Phase 2: SQLite persistence (frecency, search history, favorites)
 - ✅ Phase 3: AI Agent foundation (Anthropic/OpenAI/local support)
 - ✅ Phase 3.5: Agent actions (dismiss, execute with safety checks)
+- ✅ Phase 4: Enhanced intelligence (pattern detection, anomaly detection, health scoring, learning)
+- ✅ Phase 5 (Weeks 1-2): Agent actions (safe actions, git operations, comprehensive safety validation)
+- ✅ Phase 5 (Week 3): Background agent & scheduling (daemon, scheduled tasks, triggered actions, recommendation queue)
+- ✅ Phase 6 (Weeks 1-2): Proactive intelligence (monitoring, alerts, predictive features)
+- ✅ Phase 6 (Week 3): External integrations (GitHub/GitLab, Slack/Discord, VS Code, tmux)
 
-### Coming Soon
-- 🚧 Phase 4: Enhanced intelligence (pattern detection, learning)
-- 🚧 Phase 5: Advanced actions (git operations, batch processing)
-- 🚧 Phase 6: Proactive monitoring (alerts, predictions)
+All planned phases complete! 🎉
 
 ## Database
 
 Delta-scope uses SQLite for persistence:
 - **Location**: `~/.local/share/delta-scope/delta-scope.db` (Linux/macOS)
-- **Schema**: Version 3 (automatic migrations)
+- **Schema**: Version 5 (automatic migrations)
 - **Tables**:
   - `access_history`: Frecency tracking
   - `search_history`: Search autocomplete
   - `context_snapshots`: AI analysis history
   - `dismissed_recommendations`: User preferences
+  - `workflow_patterns`: Detected workflow patterns (Phase 4)
+  - `recommendation_feedback`: Learning from user responses (Phase 4)
+  - `anomalies`: Detected repository anomalies (Phase 4)
+  - `repo_health_history`: Health score tracking over time (Phase 4)
+  - `action_log`: Audit trail of agent actions (Phase 4/5)
+  - `scheduled_tasks`: Background scheduled tasks (Phase 5 Week 3)
+  - `triggered_actions`: Event-driven actions (Phase 5 Week 3)
+  - `queued_recommendations`: Recommendation queue (Phase 5 Week 3)
+  - `task_executions`: Task execution history (Phase 5 Week 3)
 - **Cleanup**: Auto-cleanup of data older than 90 days
 
 ## Testing
