@@ -9,7 +9,6 @@ import type { AIConfig } from '../types/index.js';
 import type {
   AgentContext,
   AgentResponse,
-  AgentRequest,
   AgentStatus,
   ValidationResult,
   ExecutionResult,
@@ -335,7 +334,7 @@ export class AIAgentService {
   async execute(
     recommendation: AgentRecommendation,
     actionId: string,
-    context: AgentContext
+    _context: AgentContext
   ): Promise<ExecutionResult> {
     const validation = this.validate(recommendation, actionId);
 

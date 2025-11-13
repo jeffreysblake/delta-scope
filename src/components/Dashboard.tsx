@@ -30,7 +30,7 @@ import { configManager } from '../services/configManager.js';
 import { getDatabaseService, closeDatabaseService } from '../services/database.js';
 import { getAIAgentService } from '../services/aiAgent.js';
 import { buildAgentContext } from '../services/agentContext.js';
-import type { AgentResponse, AgentStatus } from '../types/agent.js';
+import type { AgentResponse, AgentStatus, AgentRecommendation, RecommendedAction } from '../types/agent.js';
 
 const isDev = process.env.DEV === 'true';
 
@@ -574,7 +574,7 @@ export const Dashboard: React.FC = () => {
   /**
    * Execute an action (internal, bypasses confirmation)
    */
-  const executeActionInternal = useCallback((action: any, recommendation: any) => {
+  const executeActionInternal = useCallback((action: RecommendedAction, recommendation: AgentRecommendation) => {
     switch (action.command) {
       case 'view':
       case 'navigate':
@@ -806,15 +806,13 @@ export const Dashboard: React.FC = () => {
 
       {/* Confirmation dialog */}
       {confirmationDialog && (
-        <Box position="absolute" top={10} left={10}>
-          <ConfirmationDialog
-            title={confirmationDialog.title}
-            message={confirmationDialog.message}
-            warnings={confirmationDialog.warnings}
-            onConfirm={confirmationDialog.onConfirm}
-            onCancel={() => setConfirmationDialog(null)}
-          />
-        </Box>
+        <ConfirmationDialog
+          title={confirmationDialog.title}
+          message={confirmationDialog.message}
+          warnings={confirmationDialog.warnings}
+          onConfirm={confirmationDialog.onConfirm}
+          onCancel={() => setConfirmationDialog(null)}
+        />
       )}
 
       <Footer view={view} />

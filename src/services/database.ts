@@ -19,14 +19,6 @@ interface AccessHistoryRecord {
   session_id: string;
 }
 
-interface SearchHistoryRecord {
-  id?: number;
-  query: string;
-  timestamp: number;
-  result_count: number;
-  selected_repo_path: string | null;
-}
-
 interface FrecencyScore {
   repo_path: string;
   score: number;
