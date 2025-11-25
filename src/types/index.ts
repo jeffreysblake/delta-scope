@@ -17,6 +17,13 @@ export interface GitRepo {
   lastCommitMessage: string | null;
   remotes: string[];
   isFavorite: boolean;
+  // Repo classification for system-wide scanning
+  isSystemRepo: boolean;
+  classification: 'user' | 'system' | 'unknown';
+  classificationConfidence: 'high' | 'medium' | 'low';
+  owner: string;
+  // User-controlled visibility
+  isDisabled: boolean;
 }
 
 export interface RepoGroup {
@@ -45,6 +52,7 @@ export interface AppConfig {
   favorites: string[]; // repo paths
   maxDepth: number; // how deep to search for .git directories
   showHidden: boolean; // show hidden directories
+  showSystemRepos: boolean; // show/hide system-level repositories
   ai: AIConfig;
 }
 

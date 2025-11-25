@@ -3,9 +3,42 @@
  * Finds all .git directories within configured base paths
  */
 
-import { readdir, stat } from 'fs/promises';
+import { readdir, stat, lstat } from 'fs/promises';
 import { join } from 'path';
 import type { AppConfig } from '../types/index.js';
+
+/**
+ * Check if path should be excluded based on patterns
+ * Supports both name-based and full path-based exclusions
+ */
+function shouldExcludePath(fullPath: string, patterns: string[]): boolean {
+  return patterns.some((pattern) => {
+    // Path-based exclusion (starts with / or contains /)
+    if (pattern.startsWith('/')) {
+      return fullPath.startsWith(pattern) ||
+             fullPath.includes(`${pattern}/`) ||
+             fullPath === pattern;
+    }
+    // Name-based exclusion (for backwards compatibility)
+    const pathParts = fullPath.split('/');
+    const lastName = pathParts[pathParts.length - 1];
+    return lastName.includes(pattern) || fullPath.includes(`/${pattern}/`);
+  });
+}
+
+/**
+ * Check if directory is a known system directory that should be skipped early
+ */
+function isSystemDirectory(path: string): boolean {
+  // Only skip kernel/runtime directories - /tmp is allowed as users may have repos there
+  const systemPrefixes = [
+    '/proc/',
+    '/sys/',
+    '/dev/',
+    '/run/',
+  ];
+  return systemPrefixes.some((prefix) => path.startsWith(prefix));
+}
 
 /**
  * Recursively scan directories for git repositories
@@ -21,6 +54,16 @@ async function scanDirectory(
     return [];
   }
 
+  // Early bailout for known system directories
+  if (isSystemDirectory(dirPath)) {
+    return [];
+  }
+
+  // Check if current directory should be excluded
+  if (shouldExcludePath(dirPath, excludePatterns)) {
+    return [];
+  }
+
   const repos: string[] = [];
 
   try {
@@ -31,8 +74,7 @@ async function scanDirectory(
 
     if (hasGit) {
       repos.push(dirPath);
-      // Don't traverse subdirectories of git repos
-      return repos;
+      // Continue scanning subdirectories to find nested repos (common in monorepos)
     }
 
     // Scan subdirectories
@@ -46,12 +88,25 @@ async function scanDirectory(
         continue;
       }
 
-      // Skip excluded patterns
-      if (excludePatterns.some((pattern) => entry.name.includes(pattern))) {
+      const subDirPath = join(dirPath, entry.name);
+
+      // Check for symlinks and skip them
+      try {
+        const linkStats = await lstat(subDirPath);
+        if (linkStats.isSymbolicLink()) {
+          // Skip symlinks to avoid network drives and duplicates
+          continue;
+        }
+      } catch {
+        // If lstat fails, skip this entry
         continue;
       }
 
-      const subDirPath = join(dirPath, entry.name);
+      // Skip excluded paths (path-based check)
+      if (shouldExcludePath(subDirPath, excludePatterns)) {
+        continue;
+      }
+
       const subRepos = await scanDirectory(
         subDirPath,
         excludePatterns,

@@ -23,8 +23,41 @@ vi.mock('../../services/database.js', () => ({
     getFrecencyScore: vi.fn(() => 100),
     getRepoStats: vi.fn(() => ({ lastAccessed: Date.now(), accessCount: 1, actions: {} })),
     getDismissedRecommendations: vi.fn(() => []),
+    disableRepo: vi.fn(),
+    enableRepo: vi.fn(),
+    cleanupOldHistory: vi.fn(),
+    getCachedRepoPaths: vi.fn(() => []),
+    calculateFrecency: vi.fn(),
+    markRepoInvalid: vi.fn(),
+    getDisabledRepos: vi.fn(() => []),
+    dismissRecommendation: vi.fn(),
+    addCachedRepo: vi.fn(),
+    addCachedReposBatch: vi.fn(),
+    verifyCachedRepo: vi.fn(),
   })),
   closeDatabaseService: vi.fn(),
+}));
+vi.mock('../../services/aiAgent.js', () => ({
+  getAIAgentService: vi.fn(() => ({
+    isConfigured: vi.fn(() => false),
+    getRecommendations: vi.fn(() => []),
+    getStatus: vi.fn(() => 'not_configured'),
+    analyze: vi.fn(() => Promise.resolve({ recommendations: [], summary: '' })),
+  })),
+}));
+vi.mock('../../services/configValidator.js', () => ({
+  validateConfig: vi.fn(() => ({ issues: [] })),
+}));
+vi.mock('../../services/fastScanner.js', () => ({
+  validateCachedPaths: vi.fn((paths: string[]) => Promise.resolve(paths)),
+  backgroundScanForRepos: vi.fn(() => Promise.resolve({ newRepos: [], removedRepos: [] })),
+  initializeCacheFromScan: vi.fn(() => Promise.resolve([
+    '/home/user/repos/repo1',
+    '/home/user/repos/repo2',
+  ])),
+}));
+vi.mock('../../services/agentContext.js', () => ({
+  buildAgentContext: vi.fn(() => ({})),
 }));
 
 describe('Dashboard - Additional Coverage', () => {

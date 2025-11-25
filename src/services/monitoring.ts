@@ -4,10 +4,8 @@
  */
 
 import { execSync } from 'child_process';
-import { statSync } from 'fs';
 import type { GitRepo } from '../types/index.js';
 import type { EnrichedRepo } from '../types/agent.js';
-import { getDatabaseService } from './database.js';
 
 export type AlertPriority = 'high' | 'medium' | 'low';
 
@@ -28,7 +26,7 @@ export interface Alert {
   repo_path: string;
   detected_at: Date;
   actions: AlertAction[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface AlertAction {
@@ -56,11 +54,10 @@ export interface ConflictPrediction {
  * Monitoring Service
  */
 export class MonitoringService {
-  private db: ReturnType<typeof getDatabaseService>;
   private alertCache: Map<string, Alert> = new Map();
 
   constructor() {
-    this.db = getDatabaseService();
+    // Initialize service
   }
 
   /**
@@ -278,7 +275,7 @@ export class MonitoringService {
             safe: true,
           },
         ],
-        metadata: remoteStatus,
+        metadata: { ...remoteStatus },
       });
 
       // Alert 2: Predict merge conflicts if pulling
@@ -332,7 +329,7 @@ export class MonitoringService {
             safe: true,
           },
         ],
-        metadata: remoteStatus,
+        metadata: { ...remoteStatus },
       });
     }
 

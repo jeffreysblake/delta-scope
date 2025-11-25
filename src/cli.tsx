@@ -21,7 +21,52 @@ program
   .command('start', { isDefault: true })
   .description('Start the TUI (default)')
   .action(() => {
-    render(<App />);
+    // Check if stdin supports TTY/raw mode
+    if (!process.stdin.isTTY) {
+      console.error('Error: delta-scope requires an interactive terminal (TTY).');
+      console.error('Please run this command directly in your terminal, not through a pipe or background process.');
+      process.exit(1);
+    }
+
+    // Check if stdin supports setRawMode
+    if (typeof process.stdin.setRawMode !== 'function') {
+      console.error('Error: Your terminal does not support raw mode, which is required for delta-scope.');
+      console.error('Please ensure you are running this in a proper terminal emulator.');
+      process.exit(1);
+    }
+
+    // Enter alternate screen buffer for proper TUI rendering
+    // This prevents content overlap and provides clean screen management
+    process.stdout.write('\x1b[?1049h'); // Enter alternate screen
+    process.stdout.write('\x1b[2J');     // Clear entire screen
+    process.stdout.write('\x1b[H');      // Move cursor to home position
+
+    // Function to cleanly exit alternate screen
+    const exitAlternateScreen = () => {
+      process.stdout.write('\x1b[?1049l'); // Exit alternate screen
+    };
+
+    // Handle various exit signals to ensure clean screen restoration
+    process.on('SIGINT', () => {
+      exitAlternateScreen();
+      process.exit(0);
+    });
+    process.on('SIGTERM', () => {
+      exitAlternateScreen();
+      process.exit(0);
+    });
+
+    const instance = render(<App />, {
+      stdout: process.stdout,
+      stdin: process.stdin,
+      exitOnCtrlC: true,
+      patchConsole: false,
+    });
+
+    // Clean up alternate screen on normal exit
+    instance.waitUntilExit().then(() => {
+      exitAlternateScreen();
+    });
   });
 
 program

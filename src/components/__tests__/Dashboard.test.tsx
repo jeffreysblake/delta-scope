@@ -5,12 +5,59 @@ import { Dashboard } from '../Dashboard.js';
 import * as gitScanner from '../../services/gitScanner.js';
 import * as gitStatus from '../../services/gitStatus.js';
 import * as configManager from '../../services/configManager.js';
+import * as fastScanner from '../../services/fastScanner.js';
 import type { GitRepo, AppConfig } from '../../types/index.js';
 
 // Mock all service dependencies
 vi.mock('../../services/gitScanner.js');
 vi.mock('../../services/gitStatus.js');
 vi.mock('../../services/configManager.js');
+vi.mock('../../services/database.js', () => ({
+  getDatabaseService: vi.fn(() => ({
+    recordAccess: vi.fn(),
+    recordSearch: vi.fn(),
+    getSearchHistory: vi.fn(() => []),
+    getFrecencyScore: vi.fn(() => 100),
+    getRepoStats: vi.fn(() => ({ lastAccessed: Date.now(), accessCount: 1, actions: {} })),
+    getDismissedRecommendations: vi.fn(() => []),
+    disableRepo: vi.fn(),
+    enableRepo: vi.fn(),
+    cleanupOldHistory: vi.fn(),
+    getCachedRepoPaths: vi.fn(() => []),
+    calculateFrecency: vi.fn(),
+    markRepoInvalid: vi.fn(),
+    getDisabledRepos: vi.fn(() => []),
+    dismissRecommendation: vi.fn(),
+    addCachedRepo: vi.fn(),
+    addCachedReposBatch: vi.fn(),
+    verifyCachedRepo: vi.fn(),
+  })),
+  closeDatabaseService: vi.fn(),
+}));
+vi.mock('../../services/aiAgent.js', () => ({
+  getAIAgentService: vi.fn(() => ({
+    isConfigured: vi.fn(() => false),
+    getRecommendations: vi.fn(() => []),
+    getStatus: vi.fn(() => 'not_configured'),
+    analyze: vi.fn(() => Promise.resolve({ recommendations: [], summary: '' })),
+  })),
+}));
+vi.mock('../../services/configValidator.js', () => ({
+  validateConfig: vi.fn(() => ({ issues: [] })),
+}));
+vi.mock('../../services/fastScanner.js', () => ({
+  validateCachedPaths: vi.fn((paths: string[]) => Promise.resolve(paths)),
+  backgroundScanForRepos: vi.fn(() => Promise.resolve({ newRepos: [], removedRepos: [] })),
+  initializeCacheFromScan: vi.fn(() => Promise.resolve([
+    '/home/user/repos/repo1',
+    '/home/user/repos/repo2',
+    '/home/user/repos/repo3',
+    '/home/user/repos/repo4',
+  ])),
+}));
+vi.mock('../../services/agentContext.js', () => ({
+  buildAgentContext: vi.fn(() => ({})),
+}));
 
 describe('Dashboard', () => {
   const mockConfig: AppConfig = {
@@ -83,6 +130,9 @@ describe('Dashboard', () => {
   ];
 
   beforeEach(() => {
+    // Clear call history but don't reset implementations
+    vi.clearAllMocks();
+
     // Setup default mocks
     vi.mocked(configManager.configManager.get).mockReturnValue(mockConfig);
     vi.mocked(gitScanner.scanForRepos).mockResolvedValue([
@@ -92,6 +142,16 @@ describe('Dashboard', () => {
       '/home/user/repos/repo4',
     ]);
     vi.mocked(gitStatus.getMultipleRepoStatus).mockResolvedValue(mockRepos);
+
+    // Reset fastScanner mocks to defaults (in case a previous test changed them)
+    vi.mocked(fastScanner.initializeCacheFromScan).mockResolvedValue([
+      '/home/user/repos/repo1',
+      '/home/user/repos/repo2',
+      '/home/user/repos/repo3',
+      '/home/user/repos/repo4',
+    ]);
+    vi.mocked(fastScanner.validateCachedPaths).mockImplementation((paths: string[]) => Promise.resolve(paths));
+    vi.mocked(fastScanner.backgroundScanForRepos).mockResolvedValue({ newRepos: [], removedRepos: [] });
   });
 
   afterEach(() => {
@@ -133,11 +193,11 @@ describe('Dashboard', () => {
       expect(lastFrame()).toContain('4 repos');  // Check total count
     });
 
-    it('should call scanForRepos with config', async () => {
+    it('should call initializeCacheFromScan on first load', async () => {
       render(<Dashboard />);
 
       await vi.waitFor(() => {
-        expect(gitScanner.scanForRepos).toHaveBeenCalledWith(mockConfig);
+        expect(fastScanner.initializeCacheFromScan).toHaveBeenCalled();
       });
     });
 
@@ -174,14 +234,14 @@ describe('Dashboard', () => {
 
   describe('Error Handling', () => {
     it('should display error message when scanning fails', async () => {
-      vi.mocked(gitScanner.scanForRepos).mockRejectedValue(
+      vi.mocked(fastScanner.initializeCacheFromScan).mockRejectedValue(
         new Error('Permission denied')
       );
 
       const { lastFrame } = render(<Dashboard />);
 
       await vi.waitFor(() => {
-        expect(lastFrame()).toContain('Error: Permission denied');
+        expect(lastFrame()).toContain('Permission denied');
       });
     });
 
@@ -193,17 +253,17 @@ describe('Dashboard', () => {
       const { lastFrame } = render(<Dashboard />);
 
       await vi.waitFor(() => {
-        expect(lastFrame()).toContain('Error: Git not found');
+        expect(lastFrame()).toContain('Git not found');
       });
     });
 
     it('should handle unknown error types', async () => {
-      vi.mocked(gitScanner.scanForRepos).mockRejectedValue('String error');
+      vi.mocked(fastScanner.initializeCacheFromScan).mockRejectedValue('String error');
 
       const { lastFrame } = render(<Dashboard />);
 
       await vi.waitFor(() => {
-        expect(lastFrame()).toContain('Error: Unknown error');
+        expect(lastFrame()).toContain('Unknown error');
       });
     });
   });
@@ -690,8 +750,8 @@ describe('Dashboard', () => {
         stdin.write('r');
 
         await vi.waitFor(() => {
-          expect(gitScanner.scanForRepos).toHaveBeenCalledTimes(1);
-          expect(gitStatus.getMultipleRepoStatus).toHaveBeenCalledTimes(1);
+          expect(fastScanner.initializeCacheFromScan).toHaveBeenCalled();
+          expect(gitStatus.getMultipleRepoStatus).toHaveBeenCalled();
         });
       });
 
@@ -703,7 +763,7 @@ describe('Dashboard', () => {
         });
 
         // Make the next load take longer
-        vi.mocked(gitScanner.scanForRepos).mockImplementation(
+        vi.mocked(fastScanner.initializeCacheFromScan).mockImplementation(
           () => new Promise((resolve) => setTimeout(() => resolve([]), 100))
         );
 
@@ -793,6 +853,39 @@ describe('Dashboard', () => {
           expect(lastFrame()).toBeTruthy();
         });
       });
+    });
+  });
+
+  describe('TUI Snapshot Tests', () => {
+    it('should match loading state snapshot', () => {
+      const { lastFrame } = render(<Dashboard />);
+      expect(lastFrame()).toMatchSnapshot('loading-state');
+    });
+
+    it('should match loaded state snapshot', async () => {
+      const { lastFrame } = render(<Dashboard />);
+
+      await vi.waitFor(() => {
+        expect(lastFrame()).not.toContain('Loading repositories');
+      });
+
+      expect(lastFrame()).toMatchSnapshot('loaded-state');
+    });
+
+    it('should match help view snapshot', async () => {
+      const { lastFrame, stdin } = render(<Dashboard />);
+
+      await vi.waitFor(() => {
+        expect(lastFrame()).not.toContain('Loading repositories');
+      });
+
+      stdin.write('?');
+
+      await vi.waitFor(() => {
+        expect(lastFrame()).toContain('Help');
+      });
+
+      expect(lastFrame()).toMatchSnapshot('help-view');
     });
   });
 });

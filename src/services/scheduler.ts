@@ -20,7 +20,7 @@ export interface ScheduledTask {
   enabled: boolean;
   last_run: number | null;
   next_run: number;
-  params: Record<string, any>;
+  params: Record<string, unknown>;
   priority: number; // 1-10, higher = more important
   created_at: number;
 }
@@ -32,7 +32,7 @@ export interface TriggeredAction {
   action: string;
   condition?: string; // Optional condition expression
   enabled: boolean;
-  params: Record<string, any>;
+  params: Record<string, unknown>;
   priority: number;
   created_at: number;
 }
@@ -238,7 +238,7 @@ export class SchedulerService extends EventEmitter {
   /**
    * Fire a trigger
    */
-  fireTrigger(triggerType: TriggerType, context?: Record<string, any>): void {
+  fireTrigger(triggerType: TriggerType, context?: Record<string, unknown>): void {
     const actions = Array.from(this.triggeredActions.values())
       .filter(a => a.enabled && a.trigger === triggerType)
       .sort((a, b) => b.priority - a.priority);
@@ -379,30 +379,15 @@ export class SchedulerService extends EventEmitter {
   private calculateNextRun(schedule: ScheduleFrequency, lastRun: number | null): number {
     const now = Date.now();
     const base = lastRun || now;
+    const daysOffset: Record<ScheduleFrequency, number> = { hourly: 0, daily: 1, weekly: 7, custom: 0 };
 
-    switch (schedule) {
-      case 'hourly':
-        return base + 60 * 60 * 1000; // 1 hour
-
-      case 'daily':
-        // Next day at same time
-        const nextDay = new Date(base);
-        nextDay.setDate(nextDay.getDate() + 1);
-        return nextDay.getTime();
-
-      case 'weekly':
-        // Next week at same time
-        const nextWeek = new Date(base);
-        nextWeek.setDate(nextWeek.getDate() + 7);
-        return nextWeek.getTime();
-
-      case 'custom':
-        // TODO: Implement cron parsing
-        return now + 60 * 60 * 1000; // Default to hourly
-
-      default:
-        return now + 60 * 60 * 1000;
+    if (schedule === 'hourly' || schedule === 'custom') {
+      return base + 60 * 60 * 1000;
     }
+
+    const nextDate = new Date(base);
+    nextDate.setDate(nextDate.getDate() + daysOffset[schedule]);
+    return nextDate.getTime();
   }
 
   /**
@@ -468,7 +453,7 @@ export class SchedulerService extends EventEmitter {
    */
   private async executeTriggeredAction(
     action: TriggeredAction,
-    context?: Record<string, any>
+    context?: Record<string, unknown>
   ): Promise<void> {
     try {
       const params = { ...action.params, ...context };
@@ -483,7 +468,7 @@ export class SchedulerService extends EventEmitter {
   /**
    * Execute an action by name
    */
-  private async executeAction(action: string, params: Record<string, any>): Promise<any> {
+  private async executeAction(action: string, params: Record<string, unknown>): Promise<unknown> {
     // Emit action for external handling
     const result = await new Promise((resolve, reject) => {
       this.emit('execute_action', { action, params, resolve, reject });
@@ -495,7 +480,7 @@ export class SchedulerService extends EventEmitter {
   /**
    * Evaluate a condition expression
    */
-  private evaluateCondition(condition: string, context?: Record<string, any>): boolean {
+  private evaluateCondition(condition: string, context?: Record<string, unknown>): boolean {
     try {
       // Simple expression evaluation
       // For security, we only support basic comparisons
@@ -504,16 +489,16 @@ export class SchedulerService extends EventEmitter {
       if (!match) return true;
 
       const [, key, operator, value] = match;
-      const contextValue = context?.[key];
+      const contextValue = context?.[key] as string | number | undefined;
       const compareValue = isNaN(Number(value)) ? value : Number(value);
 
       switch (operator) {
         case '==': return contextValue == compareValue;
         case '!=': return contextValue != compareValue;
-        case '>': return contextValue > compareValue;
-        case '<': return contextValue < compareValue;
-        case '>=': return contextValue >= compareValue;
-        case '<=': return contextValue <= compareValue;
+        case '>': return Number(contextValue) > Number(compareValue);
+        case '<': return Number(contextValue) < Number(compareValue);
+        case '>=': return Number(contextValue) >= Number(compareValue);
+        case '<=': return Number(contextValue) <= Number(compareValue);
         default: return true;
       }
     } catch {
@@ -566,7 +551,7 @@ export class SchedulerService extends EventEmitter {
    * Load recommendation queue from database
    */
   private loadRecommendationQueue(): void {
-    this.recommendationQueue = this.db.getQueuedRecommendations();
+    this.recommendationQueue = this.db.getQueuedRecommendations() as QueuedRecommendation[];
   }
 
   /**

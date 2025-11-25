@@ -1,12 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { getRepoName, scanForRepos } from '../gitScanner.js';
 import { join } from 'path';
+import type { Dirent, Stats } from 'fs';
 import type { AppConfig } from '../../types/index.js';
 
 // Mock fs/promises module
 vi.mock('fs/promises', () => ({
   readdir: vi.fn(),
   stat: vi.fn(),
+  lstat: vi.fn(),
 }));
 
 describe('GitScanner', () => {
@@ -101,7 +103,7 @@ describe('GitScanner', () => {
 
     it('should find git repositories in base path', async () => {
       const basePath = '/test/projects';
-      const { readdir, stat } = await import('fs/promises');
+      const { readdir, stat, lstat } = await import('fs/promises');
 
       // Mock filesystem structure:
       // /test/projects/
@@ -109,7 +111,8 @@ describe('GitScanner', () => {
       //   repo2/.git
       //   not-a-repo/
 
-      vi.mocked(stat).mockResolvedValue({} as any);
+      vi.mocked(stat).mockResolvedValue({} as Stats);
+      vi.mocked(lstat).mockResolvedValue({ isSymbolicLink: () => false } as Stats);
 
       vi.mocked(readdir).mockImplementation(async (path: string) => {
         if (path === basePath) {
@@ -117,18 +120,18 @@ describe('GitScanner', () => {
             { name: 'repo1', isDirectory: () => true },
             { name: 'repo2', isDirectory: () => true },
             { name: 'not-a-repo', isDirectory: () => true },
-          ] as any;
+          ] as unknown as Dirent[];
         }
         if (path === join(basePath, 'repo1')) {
-          return [{ name: '.git', isDirectory: () => true }] as any;
+          return [{ name: '.git', isDirectory: () => true }] as unknown as Dirent[];
         }
         if (path === join(basePath, 'repo2')) {
-          return [{ name: '.git', isDirectory: () => true }] as any;
+          return [{ name: '.git', isDirectory: () => true }] as unknown as Dirent[];
         }
         if (path === join(basePath, 'not-a-repo')) {
-          return [{ name: 'file.txt', isDirectory: () => false }] as any;
+          return [{ name: 'file.txt', isDirectory: () => false }] as unknown as Dirent[];
         }
-        return [] as any;
+        return [] as unknown as Dirent[];
       });
 
       const config: AppConfig = {
@@ -151,21 +154,22 @@ describe('GitScanner', () => {
 
     it('should respect excludePatterns', async () => {
       const basePath = '/test/projects';
-      const { readdir, stat } = await import('fs/promises');
+      const { readdir, stat, lstat } = await import('fs/promises');
 
-      vi.mocked(stat).mockResolvedValue({} as any);
+      vi.mocked(stat).mockResolvedValue({} as Stats);
+      vi.mocked(lstat).mockResolvedValue({ isSymbolicLink: () => false } as Stats);
 
       vi.mocked(readdir).mockImplementation(async (path: string) => {
         if (path === basePath) {
           return [
             { name: 'node_modules', isDirectory: () => true },
             { name: 'repo1', isDirectory: () => true },
-          ] as any;
+          ] as unknown as Dirent[];
         }
         if (path === join(basePath, 'repo1')) {
-          return [{ name: '.git', isDirectory: () => true }] as any;
+          return [{ name: '.git', isDirectory: () => true }] as unknown as Dirent[];
         }
-        return [] as any;
+        return [] as unknown as Dirent[];
       });
 
       const config: AppConfig = {
@@ -186,24 +190,25 @@ describe('GitScanner', () => {
 
     it('should respect maxDepth setting', async () => {
       const basePath = '/test/projects';
-      const { readdir, stat } = await import('fs/promises');
+      const { readdir, stat, lstat } = await import('fs/promises');
 
-      vi.mocked(stat).mockResolvedValue({} as any);
+      vi.mocked(stat).mockResolvedValue({} as Stats);
+      vi.mocked(lstat).mockResolvedValue({ isSymbolicLink: () => false } as Stats);
 
       vi.mocked(readdir).mockImplementation(async (path: string) => {
         if (path === basePath) {
           return [
             { name: 'repo1', isDirectory: () => true },
             { name: 'nested', isDirectory: () => true },
-          ] as any;
+          ] as unknown as Dirent[];
         }
         if (path === join(basePath, 'repo1')) {
-          return [{ name: '.git', isDirectory: () => true }] as any;
+          return [{ name: '.git', isDirectory: () => true }] as unknown as Dirent[];
         }
         if (path === join(basePath, 'nested')) {
-          return [{ name: 'deep-repo', isDirectory: () => true }] as any;
+          return [{ name: 'deep-repo', isDirectory: () => true }] as unknown as Dirent[];
         }
-        return [] as any;
+        return [] as unknown as Dirent[];
       });
 
       const config: AppConfig = {
@@ -225,21 +230,22 @@ describe('GitScanner', () => {
 
     it('should skip hidden directories when showHidden is false', async () => {
       const basePath = '/test/projects';
-      const { readdir, stat } = await import('fs/promises');
+      const { readdir, stat, lstat } = await import('fs/promises');
 
-      vi.mocked(stat).mockResolvedValue({} as any);
+      vi.mocked(stat).mockResolvedValue({} as Stats);
+      vi.mocked(lstat).mockResolvedValue({ isSymbolicLink: () => false } as Stats);
 
       vi.mocked(readdir).mockImplementation(async (path: string) => {
         if (path === basePath) {
           return [
             { name: '.hidden', isDirectory: () => true },
             { name: 'visible', isDirectory: () => true },
-          ] as any;
+          ] as unknown as Dirent[];
         }
         if (path === join(basePath, 'visible')) {
-          return [{ name: '.git', isDirectory: () => true }] as any;
+          return [{ name: '.git', isDirectory: () => true }] as unknown as Dirent[];
         }
-        return [] as any;
+        return [] as unknown as Dirent[];
       });
 
       const config: AppConfig = {

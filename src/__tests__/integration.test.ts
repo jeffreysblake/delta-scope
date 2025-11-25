@@ -11,7 +11,7 @@ import { configManager } from '../services/configManager.js';
 import type { AppConfig } from '../types/index.js';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { rmSync } from 'fs';
+import { rmSync, type Dirent, type Stats } from 'fs';
 
 // Mock git operations
 vi.mock('simple-git', () => ({
@@ -39,6 +39,7 @@ vi.mock('simple-git', () => ({
 vi.mock('fs/promises', () => ({
   readdir: vi.fn(),
   stat: vi.fn(),
+  lstat: vi.fn(() => Promise.resolve({ isSymbolicLink: () => false })),
 }));
 
 describe('Integration Tests', () => {
@@ -91,18 +92,18 @@ describe('Integration Tests', () => {
       const { readdir, stat } = await import('fs/promises');
 
       // Mock file system for scanning
-      vi.mocked(stat).mockResolvedValue({} as any);
+      vi.mocked(stat).mockResolvedValue({} as Stats);
       vi.mocked(readdir).mockImplementation(async (path: string) => {
         if (path === basePath) {
           return [
             { name: 'repo1', isDirectory: () => true },
             { name: 'repo2', isDirectory: () => true },
-          ] as any;
+          ] as unknown as Dirent[];
         }
         if (path === join(basePath, 'repo1') || path === join(basePath, 'repo2')) {
-          return [{ name: '.git', isDirectory: () => true }] as any;
+          return [{ name: '.git', isDirectory: () => true }] as unknown as Dirent[];
         }
-        return [] as any;
+        return [] as Dirent[];
       });
 
       // Step 1: Scan for repos
@@ -128,19 +129,19 @@ describe('Integration Tests', () => {
       };
 
       vi.mocked(configManager).get = vi.fn(() => configWithExcludes);
-      vi.mocked(stat).mockResolvedValue({} as any);
+      vi.mocked(stat).mockResolvedValue({} as Stats);
       vi.mocked(readdir).mockImplementation(async (path: string) => {
         if (path === basePath) {
           return [
             { name: 'repo1', isDirectory: () => true },
             { name: 'node_modules', isDirectory: () => true },
             { name: 'vendor', isDirectory: () => true },
-          ] as any;
+          ] as unknown as Dirent[];
         }
         if (path === join(basePath, 'repo1')) {
-          return [{ name: '.git', isDirectory: () => true }] as any;
+          return [{ name: '.git', isDirectory: () => true }] as unknown as Dirent[];
         }
-        return [] as any;
+        return [] as Dirent[];
       });
 
       const repoPaths = await scanForRepos(configWithExcludes);
@@ -266,18 +267,18 @@ describe('Integration Tests', () => {
 
       const { readdir, stat } = await import('fs/promises');
 
-      vi.mocked(stat).mockResolvedValue({} as any);
+      vi.mocked(stat).mockResolvedValue({} as Stats);
       vi.mocked(readdir).mockImplementation(async (path: string) => {
         if (path === basePath) {
           return [
             { name: 'repo1', isDirectory: () => true },
             { name: 'repo2', isDirectory: () => true },
-          ] as any;
+          ] as unknown as Dirent[];
         }
         if (path === repo1Path || path === repo2Path) {
-          return [{ name: '.git', isDirectory: () => true }] as any;
+          return [{ name: '.git', isDirectory: () => true }] as unknown as Dirent[];
         }
-        return [] as any;
+        return [] as Dirent[];
       });
 
       // Set repo1 as favorite

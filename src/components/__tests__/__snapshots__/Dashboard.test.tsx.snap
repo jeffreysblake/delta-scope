@@ -1,0 +1,79 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Dashboard > TUI Snapshot Tests > should match help view snapshot > help-view 1`] = `
+"┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ delta-scope v0.2.0               >               Help               [4 repos | 2 need attention] │
+│ Last refresh: 2:13:06 AM                                                 [c] Settings | [?] Help │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+
+  delta-scope Help
+
+  Keyboard Shortcuts:
+    ↑/↓ or k/j     Navigate repos
+    Enter          Expand/collapse group, or show repo details
+    /              Filter repos (fuzzy search)
+    Escape         Clear filter, or return from views
+    d              Show repo details
+    f              Toggle favorite (star)
+    s              Cycle sort modes (status → name → recent → changes → frecency)
+    r              Refresh all repos
+    i              AI Insights (agent recommendations)
+    h              Home view (return from detail)
+    c              Settings (view configuration)
+    ?              Show this help
+    q              Quit
+
+  Frecency: A smart sorting algorithm that considers both frequency and recency
+            of your interactions with repositories.
+
+  AI Agent: When enabled, the AI agent analyzes your repositories and provides
+            intelligent recommendations for cleanup, workflow optimization, and
+            health improvements. Configure in Settings (c).
+
+
+  Press any key to return to the main view
+
+
+┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Press any key to return                                                                          │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘"
+`;
+
+exports[`Dashboard > TUI Snapshot Tests > should match loaded state snapshot > loaded-state 1`] = `
+"┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ delta-scope v0.2.0                                                  [4 repos | 2 need attention] │
+│ Last refresh: 2:13:06 AM                                                 [c] Settings | [?] Help │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+ ⚡ Uncommitted + Unpushed (1 repos) [expanded]
+     ⚡  repo4 ★
+       Path: /home/user/repos/repo4
+       Branch: feature | Changes: +15 -8
+       2 uncommitted files
+       1 unpushed commits
+ ⚠ Uncommitted Changes (1 repos) [expanded]
+     ⚠ repo2
+       Path: /home/user/repos/repo2
+       Branch: main | Changes: +10 -5
+       3 uncommitted files
+ ⬆ Unpushed Commits (1 repos) [collapsed]
+ ✓ All Clean (1 repos) [collapsed]
+
+┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ ↑/↓:      Enter:    d:      f: Fav/: Filtes: Sory: Syster: RefresF5: Scai: AIc: Confi?: Helq:    │
+└─Navigate |Expand | ─Details | ──── | ───── | ─── | ───── | ────── | ────| ─── | ───── | ───Quit──┘"
+`;
+
+exports[`Dashboard > TUI Snapshot Tests > should match loading state snapshot > loading-state 1`] = `
+"┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ delta-scope v0.2.0                                                                     [0 repos] │
+│ Last refresh: Never                                                      [c] Settings | [?] Help │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+⠋ Loading repositories...
+
+┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ ↑/↓:      Enter:    d:      f: Fav/: Filtes: Sory: Syster: RefresF5: Scai: AIc: Confi?: Helq:    │
+└─Navigate |Expand | ─Details | ──── | ───── | ─── | ───── | ────── | ────| ─── | ───── | ───Quit──┘"
+`;

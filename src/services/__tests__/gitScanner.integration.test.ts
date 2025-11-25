@@ -192,7 +192,7 @@ describe('gitScanner (integration)', () => {
     expect(repos).toBeInstanceOf(Array);
   });
 
-  it('should not traverse into git repos (nested repos)', async () => {
+  it('should find nested repos (monorepo support)', async () => {
     // Create test directory structure:
     // testDir/
     //   parent-repo/.git/
@@ -216,11 +216,11 @@ describe('gitScanner (integration)', () => {
 
     const repos = await scanForRepos(config);
 
-    // Should only find parent-repo, not nested-repo
-    // because we stop traversing once we find a .git directory
-    expect(repos).toHaveLength(1);
+    // Should find both repos - we continue scanning for nested repos
+    // to support monorepo structures where packages have their own .git
+    expect(repos).toHaveLength(2);
     expect(repos).toContain(parentRepo);
-    expect(repos).not.toContain(nestedRepo);
+    expect(repos).toContain(nestedRepo);
   });
 
   it('should deduplicate repos from multiple base paths', async () => {

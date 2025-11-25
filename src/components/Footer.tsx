@@ -10,9 +10,10 @@ interface FooterProps {
 }
 
 export const Footer: React.FC<FooterProps> = ({ view }) => {
+
   if (view === 'help') {
     return (
-      <Box borderStyle="single" borderColor="cyan" paddingX={1}>
+      <Box borderStyle="single" borderColor="cyan" paddingX={1} width="100%" height={3}>
         <Text dimColor>Press any key to return</Text>
       </Box>
     );
@@ -20,7 +21,7 @@ export const Footer: React.FC<FooterProps> = ({ view }) => {
 
   if (view === 'settings') {
     return (
-      <Box borderStyle="single" borderColor="cyan" paddingX={1}>
+      <Box borderStyle="single" borderColor="cyan" paddingX={1} width="100%" height={3}>
         <Text dimColor>Esc/c: Close | </Text>
         <Text dimColor>?: Help | </Text>
         <Text dimColor>q: Quit | </Text>
@@ -31,9 +32,11 @@ export const Footer: React.FC<FooterProps> = ({ view }) => {
 
   if (view === 'detail') {
     return (
-      <Box borderStyle="single" borderColor="cyan" paddingX={1}>
+      <Box borderStyle="single" borderColor="cyan" paddingX={1} width="100%" height={3}>
         <Text dimColor>Esc/h: Back | </Text>
+        <Text dimColor>x: Disable | </Text>
         <Text dimColor>r: Refresh | </Text>
+        <Text dimColor>F5: Full Scan | </Text>
         <Text dimColor>?: Help | </Text>
         <Text dimColor>q: Quit</Text>
       </Box>
@@ -42,7 +45,7 @@ export const Footer: React.FC<FooterProps> = ({ view }) => {
 
   if (view === 'agent') {
     return (
-      <Box borderStyle="single" borderColor="cyan" paddingX={1}>
+      <Box borderStyle="single" borderColor="cyan" paddingX={1} width="100%" height={3}>
         <Text dimColor>↑/↓/k/j: Navigate | </Text>
         <Text dimColor>Enter/Space: Expand | </Text>
         <Text dimColor>e: Execute | </Text>
@@ -55,14 +58,16 @@ export const Footer: React.FC<FooterProps> = ({ view }) => {
   }
 
   return (
-    <Box borderStyle="single" borderColor="cyan" paddingX={1}>
+    <Box borderStyle="single" borderColor="cyan" paddingX={1} width="100%" height={3}>
       <Text dimColor>↑/↓: Navigate | </Text>
       <Text dimColor>Enter: Expand | </Text>
       <Text dimColor>d: Details | </Text>
       <Text dimColor>f: Fav | </Text>
       <Text dimColor>/: Filter | </Text>
       <Text dimColor>s: Sort | </Text>
+      <Text dimColor>y: System | </Text>
       <Text dimColor>r: Refresh | </Text>
+      <Text dimColor>F5: Scan | </Text>
       <Text dimColor>i: AI | </Text>
       <Text dimColor>c: Config | </Text>
       <Text dimColor>?: Help | </Text>

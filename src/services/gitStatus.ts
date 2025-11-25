@@ -4,9 +4,102 @@
  */
 
 import simpleGit, { SimpleGit, StatusResult } from 'simple-git';
+import { stat } from 'fs/promises';
+import { join } from 'path';
 import type { GitRepo, RepoStatus } from '../types/index.js';
 import { getRepoName } from './gitScanner.js';
 import { configManager } from './configManager.js';
+import { getDatabaseService } from './database.js';
+
+/**
+ * Classify repository based on path and ownership
+ */
+async function classifyRepository(repoPath: string): Promise<{
+  isSystemRepo: boolean;
+  classification: 'user' | 'system' | 'unknown';
+  classificationConfidence: 'high' | 'medium' | 'low';
+  owner: string;
+}> {
+  try {
+    // Get ownership of .git directory
+    const gitDirPath = join(repoPath, '.git');
+    const gitStat = await stat(gitDirPath);
+    const currentUid = process.getuid?.() ?? -1;
+    const owner = gitStat.uid.toString();
+    const isOwnedByCurrentUser = gitStat.uid === currentUid;
+
+    // System directory patterns
+    const systemPatterns = [
+      /^\/usr\//,
+      /^\/var\/lib\//,
+      /^\/var\/cache\//,
+      /^\/opt\//,
+      /^\/snap\//,
+      /^\/etc\//,
+      /^\/lib\//,
+      /^\/boot\//,
+    ];
+
+    // User directory patterns
+    const userPatterns = [
+      /^\/home\/[^/]+\/(?!\.)/,  // /home/{user}/something (not hidden)
+      /^\/home\/[^/]+\/projects/i,
+      /^\/home\/[^/]+\/git/i,
+      /^\/home\/[^/]+\/dev/i,
+      /^\/home\/[^/]+\/code/i,
+      /^\/home\/[^/]+\/workspace/i,
+      /^\/media\/[^/]+\/(?!\.)/,  // /media/{user}/something (not hidden, e.g., external drives)
+    ];
+
+    // Check against patterns
+    const isSystemPath = systemPatterns.some(pattern => pattern.test(repoPath));
+    const isUserPath = userPatterns.some(pattern => pattern.test(repoPath));
+
+    // Classification logic
+    if (isSystemPath) {
+      return {
+        isSystemRepo: true,
+        classification: 'system',
+        classificationConfidence: 'high',
+        owner,
+      };
+    }
+
+    if (isUserPath && isOwnedByCurrentUser) {
+      return {
+        isSystemRepo: false,
+        classification: 'user',
+        classificationConfidence: 'high',
+        owner,
+      };
+    }
+
+    if (isOwnedByCurrentUser) {
+      return {
+        isSystemRepo: false,
+        classification: 'user',
+        classificationConfidence: 'medium',
+        owner,
+      };
+    }
+
+    // Default: probably system if not owned by current user
+    return {
+      isSystemRepo: true,
+      classification: gitStat.uid === 0 ? 'system' : 'unknown',
+      classificationConfidence: gitStat.uid === 0 ? 'high' : 'low',
+      owner,
+    };
+  } catch (error) {
+    // If we can't determine ownership, mark as unknown
+    return {
+      isSystemRepo: false,
+      classification: 'unknown',
+      classificationConfidence: 'low',
+      owner: 'unknown',
+    };
+  }
+}
 
 /**
  * Get git status for a single repository
@@ -59,6 +152,13 @@ export async function getRepoStatus(repoPath: string): Promise<GitRepo | null> {
     // Get remotes
     const remotes = await git.getRemotes();
 
+    // Classify repository
+    const classification = await classifyRepository(repoPath);
+
+    // Check if repo is disabled by user
+    const db = getDatabaseService();
+    const isDisabled = db.isRepoDisabled(repoPath);
+
     return {
       path: repoPath,
       name: getRepoName(repoPath),
@@ -72,6 +172,11 @@ export async function getRepoStatus(repoPath: string): Promise<GitRepo | null> {
       lastCommitMessage,
       remotes: remotes.map((r) => r.name),
       isFavorite: configManager.isFavorite(repoPath),
+      isSystemRepo: classification.isSystemRepo,
+      classification: classification.classification,
+      classificationConfidence: classification.classificationConfidence,
+      owner: classification.owner,
+      isDisabled,
     };
   } catch (error) {
     // If we can't get status, return null

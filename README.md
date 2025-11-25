@@ -43,6 +43,11 @@
 - **VS Code**: Open repos or workspaces in VS Code with one command
 - **tmux**: Launch terminal sessions for repos with automatic session management
 
+## Requirements
+
+- **Node.js** 18+
+- **find** and **sed** - Standard Unix utilities (pre-installed on most systems)
+
 ## Installation
 
 ```bash

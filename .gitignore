@@ -36,3 +36,7 @@ logs/
 
 # OS
 Thumbs.db
+
+# Claude Code (keep config, exclude personal/ephemeral)
+.claude/settings.local.json
+.claude/logs/

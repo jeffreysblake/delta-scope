@@ -164,11 +164,19 @@ export class IntegrationsService {
         { encoding: 'utf-8', cwd: repo.path }
       );
 
-      const prs = JSON.parse(result);
-      return prs.map((pr: any) => ({
+      const prs = JSON.parse(result) as Array<{
+        number: number;
+        title: string;
+        state: string;
+        author?: { login: string };
+        url: string;
+        createdAt: string;
+        updatedAt: string;
+      }>;
+      return prs.map((pr) => ({
         number: pr.number,
         title: pr.title,
-        state: pr.state.toLowerCase(),
+        state: pr.state.toLowerCase() as 'open' | 'closed' | 'merged',
         author: pr.author?.login || 'unknown',
         url: pr.url,
         created_at: pr.createdAt,
@@ -248,11 +256,19 @@ export class IntegrationsService {
         { encoding: 'utf-8', cwd: repo.path }
       );
 
-      const mrs = JSON.parse(result);
-      return mrs.map((mr: any) => ({
+      const mrs = JSON.parse(result) as Array<{
+        iid: number;
+        title: string;
+        state: string;
+        author?: { username: string };
+        web_url: string;
+        created_at: string;
+        updated_at: string;
+      }>;
+      return mrs.map((mr) => ({
         iid: mr.iid,
         title: mr.title,
-        state: mr.state,
+        state: mr.state as 'opened' | 'closed' | 'merged',
         author: mr.author?.username || 'unknown',
         url: mr.web_url,
         created_at: mr.created_at,
@@ -279,11 +295,15 @@ export class IntegrationsService {
         { encoding: 'utf-8', cwd: repo.path }
       );
 
-      const ci = JSON.parse(result);
+      const ci = JSON.parse(result) as {
+        status: string;
+        web_url: string;
+        jobs?: Array<{ name: string; status: string }>;
+      };
       return {
         status: ci.status === 'success' ? 'success' : ci.status === 'failed' ? 'failed' : 'pending',
         pipeline_url: ci.web_url,
-        jobs: ci.jobs?.map((job: any) => ({
+        jobs: ci.jobs?.map((job) => ({
           name: job.name,
           status: job.status,
         })) || [],
@@ -298,7 +318,7 @@ export class IntegrationsService {
   /**
    * Send Slack notification
    */
-  async sendSlackNotification(message: string, blocks?: any[]): Promise<boolean> {
+  async sendSlackNotification(message: string, blocks?: unknown[]): Promise<boolean> {
     if (!this.config.slack?.enabled || !this.config.slack.webhook_url) {
       return false;
     }
@@ -369,7 +389,7 @@ export class IntegrationsService {
   /**
    * Send Discord notification
    */
-  async sendDiscordNotification(message: string, embed?: any): Promise<boolean> {
+  async sendDiscordNotification(message: string, embed?: unknown): Promise<boolean> {
     if (!this.config.discord?.enabled || !this.config.discord.webhook_url) {
       return false;
     }

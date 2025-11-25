@@ -4,14 +4,16 @@
   "description": "Power-user TUI for managing chaos across multiple git repositories",
   "type": "module",
   "author": "Jeffrey Blake",
-  "license": "MIT",
+  "license": "GPL-3.0",
   "bin": {
     "delta-scope": "./dist/cli.js",
     "ds": "./dist/cli.js"
   },
   "scripts": {
-    "dev": "DEV=true tsx src/cli.tsx",
-    "dev:watch": "DEV=true tsx watch src/cli.tsx",
+    "dev": "tsx src/cli.tsx",
+    "dev:debug": "DEV=true tsx src/cli.tsx",
+    "dev:watch": "tsx watch src/cli.tsx",
+    "dev:watch:debug": "DEV=true tsx watch src/cli.tsx",
     "build": "tsc",
     "start": "node dist/cli.js",
     "test": "vitest run",
@@ -62,6 +64,7 @@
     "eslint-plugin-react-hooks": "^4.6.0",
     "ink-testing-library": "^4.0.0",
     "prettier": "^3.2.4",
+    "react-devtools-core": "^4.28.5",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3",
     "vitest": "^1.2.0"

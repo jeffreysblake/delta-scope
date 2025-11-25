@@ -109,7 +109,7 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <Box borderStyle="single" borderColor="cyan" flexDirection="column" paddingX={1}>
+    <Box borderStyle="single" borderColor="cyan" flexDirection="column" paddingX={1} width="100%" height={4}>
       <Box justifyContent="space-between">
         {getBreadcrumb()}
         <Box>

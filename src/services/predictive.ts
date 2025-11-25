@@ -53,17 +53,6 @@ export class PredictiveService {
    */
   suggestCommitMessage(repo: GitRepo): CommitMessageSuggestion {
     try {
-      // Get diff stats
-      const diffStat = execSync('git diff --stat', {
-        cwd: repo.path,
-        encoding: 'utf-8',
-      });
-
-      const diffShortStat = execSync('git diff --shortstat', {
-        cwd: repo.path,
-        encoding: 'utf-8',
-      }).trim();
-
       // Get list of changed files
       const changedFiles = execSync('git diff --name-only', {
         cwd: repo.path,

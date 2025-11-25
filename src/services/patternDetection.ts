@@ -25,7 +25,7 @@ export interface Anomaly {
   severity: 'low' | 'medium' | 'high';
   description: string;
   detectedAt: Date;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface HealthFactors {

@@ -3,7 +3,7 @@
  */
 
 import React from 'react';
-import { Box, Text, useInput, type Key } from 'ink';
+import { Box, Text, useInput, useStdout, type Key } from 'ink';
 
 export interface ConfirmationDialogProps {
   title: string;
@@ -24,6 +24,10 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
   onConfirm,
   onCancel,
 }) => {
+  const { stdout } = useStdout();
+  const terminalWidth = stdout?.columns || 80;
+  const dialogWidth = Math.min(60, terminalWidth - 4); // Max 60, but respect terminal width
+
   useInput((input: string, key: Key) => {
     if (input === 'y' || key.return) {
       onConfirm();
@@ -38,7 +42,7 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
       borderStyle="double"
       borderColor="yellow"
       padding={1}
-      width={60}
+      width={dialogWidth}
     >
       {/* Title */}
       <Box marginBottom={1}>

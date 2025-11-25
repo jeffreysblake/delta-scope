@@ -17,65 +17,57 @@ export const ValidationWarning: React.FC<ValidationWarningProps> = ({ issues }) 
   const infos = issues.filter((i) => i.type === 'info');
 
   return (
-    <Box flexDirection="column" paddingX={2} paddingY={1}>
-      <Box marginBottom={1}>
-        <Text bold color="yellow">
-          ⚠️  Configuration Issues Detected
-        </Text>
+    <Box flexDirection="column" paddingX={2} paddingY={1} flexGrow={1} width="100%">
+      <Box flexDirection="column" flexGrow={1}>
+        <Box marginBottom={1}>
+          <Text bold color="yellow">
+            ⚠️  Configuration Issues Detected
+          </Text>
+        </Box>
+
+        {errors.length > 0 && (
+          <Box flexDirection="column">
+            <Text bold color="red">
+              Warnings ({errors.length}):
+            </Text>
+            {errors.map((issue, idx) => (
+              <Box key={idx} flexDirection="column" marginLeft={2}>
+                <Text color="red">❌ {issue.message}</Text>
+                {issue.suggestion && <Text dimColor>   💡 {issue.suggestion}</Text>}
+              </Box>
+            ))}
+          </Box>
+        )}
+
+        {warnings.length > 0 && (
+          <Box flexDirection="column" marginTop={1}>
+            <Text bold color="yellow">
+              Warnings ({warnings.length}):
+            </Text>
+            {warnings.map((issue, idx) => (
+              <Box key={idx} marginLeft={2}>
+                <Text color="yellow">⚠️  {issue.message}</Text>
+              </Box>
+            ))}
+          </Box>
+        )}
+
+        {infos.length > 0 && (
+          <Box flexDirection="column" marginTop={1}>
+            <Text bold color="cyan">
+              Suggestions ({infos.length}):
+            </Text>
+            {infos.map((issue, idx) => (
+              <Box key={idx} marginLeft={2}>
+                <Text color="cyan">ℹ️  {issue.message}</Text>
+              </Box>
+            ))}
+          </Box>
+        )}
       </Box>
 
-      {errors.length > 0 && (
-        <Box flexDirection="column" marginBottom={1}>
-          <Text bold color="red">
-            Errors ({errors.length}):
-          </Text>
-          {errors.map((issue, idx) => (
-            <Box key={idx} flexDirection="column" marginLeft={2} marginTop={1}>
-              <Text color="red">❌ {issue.message}</Text>
-              {issue.suggestion && (
-                <Text dimColor>   💡 {issue.suggestion}</Text>
-              )}
-            </Box>
-          ))}
-        </Box>
-      )}
-
-      {warnings.length > 0 && (
-        <Box flexDirection="column" marginBottom={1}>
-          <Text bold color="yellow">
-            Warnings ({warnings.length}):
-          </Text>
-          {warnings.map((issue, idx) => (
-            <Box key={idx} flexDirection="column" marginLeft={2} marginTop={1}>
-              <Text color="yellow">⚠️  {issue.message}</Text>
-              {issue.suggestion && (
-                <Text dimColor>   💡 {issue.suggestion}</Text>
-              )}
-            </Box>
-          ))}
-        </Box>
-      )}
-
-      {infos.length > 0 && (
-        <Box flexDirection="column" marginBottom={1}>
-          <Text bold color="cyan">
-            Suggestions ({infos.length}):
-          </Text>
-          {infos.map((issue, idx) => (
-            <Box key={idx} flexDirection="column" marginLeft={2} marginTop={1}>
-              <Text color="cyan">ℹ️  {issue.message}</Text>
-              {issue.suggestion && (
-                <Text dimColor>   💡 {issue.suggestion}</Text>
-              )}
-            </Box>
-          ))}
-        </Box>
-      )}
-
-      <Box marginTop={1} borderStyle="single" borderColor="cyan" paddingX={1}>
-        <Text dimColor>
-          Press any key to continue{errors.length > 0 ? ' (errors must be fixed first)' : ''}
-        </Text>
+      <Box marginTop={1} borderStyle="single" borderColor="cyan" paddingX={1} width="100%">
+        <Text dimColor>Press any key to continue</Text>
       </Box>
     </Box>
   );

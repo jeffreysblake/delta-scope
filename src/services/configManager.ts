@@ -5,12 +5,34 @@
 
 import Conf from 'conf';
 import type { AppConfig } from '../types/index.js';
-import { homedir } from 'os';
-import { join } from 'path';
 
 const DEFAULT_CONFIG: AppConfig = {
-  basePaths: [join(homedir(), 'projects'), join(homedir(), 'git')],
+  // System-wide scanning: scan all user directories and root for mounted partitions
+  basePaths: ['/home', '/'],
   excludePatterns: [
+    // Virtual/pseudo filesystems (must exclude)
+    '/proc',
+    '/sys',
+    '/dev',
+    '/run',
+    '/tmp',
+    // NAS mounts (specific to user's machine)
+    '/media/nas',
+    '/media/nas1',
+    '/media/nas2',
+    '/mnt/nas',
+    '/mnt/network',
+    // System directories
+    '/boot',
+    '/lost+found',
+    // Snap packages (OS-level)
+    '/snap',
+    '/var/snap',
+    // System package directories
+    '/usr/share',
+    '/var/lib',
+    '/var/cache',
+    // Build artifacts and package managers
     'node_modules',
     'dist',
     'build',
@@ -20,12 +42,16 @@ const DEFAULT_CONFIG: AppConfig = {
     '.cargo',
     '.npm',
     '.cache',
+    '.bundle', // Ruby bundler cache
+    // User-specific exclusions
+    'Decisiv', // Old job folder
   ],
   theme: 'dark',
-  refreshInterval: 60,
+  refreshInterval: 60000, // 60 seconds in milliseconds
   favorites: [],
-  maxDepth: 5,
+  maxDepth: 8, // Deeper to handle nested mounts
   showHidden: false,
+  showSystemRepos: false, // Hide system repos by default
   ai: {
     enabled: false,
     provider: 'anthropic',
@@ -77,6 +103,9 @@ class ConfigManager {
           maximum: 10,
         },
         showHidden: {
+          type: 'boolean',
+        },
+        showSystemRepos: {
           type: 'boolean',
         },
         ai: {
@@ -183,3 +212,17 @@ class ConfigManager {
 }
 
 export const configManager = new ConfigManager();
+
+/**
+ * Get the config manager instance
+ */
+export function getConfigManager(): ConfigManager {
+  return configManager;
+}
+
+/**
+ * Update config (convenience function)
+ */
+export function updateConfig(config: Partial<AppConfig>): void {
+  configManager.set(config);
+}
