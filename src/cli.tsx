@@ -56,17 +56,28 @@ program
       process.exit(0);
     });
 
-    const instance = render(<App />, {
-      stdout: process.stdout,
-      stdin: process.stdin,
-      exitOnCtrlC: true,
-      patchConsole: false,
-    });
+    // Start the Ink render after a brief delay to prevent ghost frames
+    // This allows the terminal to fully switch to alternate screen before rendering
+    const startRender = () => {
+      // Clear screen one more time right before rendering
+      process.stdout.write('\x1b[2J');
+      process.stdout.write('\x1b[H');
 
-    // Clean up alternate screen on normal exit
-    instance.waitUntilExit().then(() => {
-      exitAlternateScreen();
-    });
+      const instance = render(<App />, {
+        stdout: process.stdout,
+        stdin: process.stdin,
+        exitOnCtrlC: true,
+        patchConsole: false,
+      });
+
+      // Clean up alternate screen on normal exit
+      instance.waitUntilExit().then(() => {
+        exitAlternateScreen();
+      });
+    };
+
+    // Wait for terminal to stabilize before starting render
+    setTimeout(startRender, 100);
   });
 
 program

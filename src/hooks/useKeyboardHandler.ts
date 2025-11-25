@@ -41,11 +41,13 @@ interface UseKeyboardHandlerOptions {
   setShowSystemRepos: (show: boolean) => void;
   setRepos: React.Dispatch<React.SetStateAction<GitRepo[]>>;
   setLastKeypress: (key: string) => void;
+  setGroups: React.Dispatch<React.SetStateAction<RepoGroup[]>>;
 
   // Actions
   loadRepos: (forceFullScan?: boolean) => void;
   toggleGroup: (groupIndex: number) => void;
   cycleSortMode: () => void;
+  cycleDisplayMode: () => void;
   runAgentAnalysis: (repos: GitRepo[]) => void;
   showNotification: (message: string, type: 'success' | 'error' | 'info') => void;
 }
@@ -75,9 +77,11 @@ export function useKeyboardHandler(options: UseKeyboardHandlerOptions): void {
     setShowSystemRepos,
     setRepos,
     setLastKeypress,
+    setGroups,
     loadRepos,
     toggleGroup,
     cycleSortMode,
+    cycleDisplayMode,
     runAgentAnalysis,
     showNotification,
   } = options;
@@ -98,6 +102,92 @@ export function useKeyboardHandler(options: UseKeyboardHandlerOptions): void {
   const navigateDown = useCallback(() => {
     setSelectedNavIndex((prev) => Math.min(navItems.length - 1, prev + 1));
   }, [navItems.length, setSelectedNavIndex]);
+
+  /**
+   * Navigate up by 10 items (Page Up)
+   */
+  const navigatePageUp = useCallback(() => {
+    setSelectedNavIndex((prev) => Math.max(0, prev - 10));
+  }, [setSelectedNavIndex]);
+
+  /**
+   * Navigate down by 10 items (Page Down)
+   */
+  const navigatePageDown = useCallback(() => {
+    setSelectedNavIndex((prev) => Math.min(navItems.length - 1, prev + 10));
+  }, [navItems.length, setSelectedNavIndex]);
+
+  /**
+   * Jump to first item (Home)
+   */
+  const navigateHome = useCallback(() => {
+    setSelectedNavIndex(0);
+  }, [setSelectedNavIndex]);
+
+  /**
+   * Jump to last item (End)
+   */
+  const navigateEnd = useCallback(() => {
+    setSelectedNavIndex(navItems.length - 1);
+  }, [navItems.length, setSelectedNavIndex]);
+
+  /**
+   * Jump to previous group header ([)
+   */
+  const navigateToPreviousGroup = useCallback(() => {
+    if (navItems.length === 0) return;
+
+    // Find the current position
+    let targetIndex = selectedNavIndex - 1;
+
+    // Search backwards for a group header
+    while (targetIndex >= 0) {
+      if (navItems[targetIndex]?.type === 'group-header') {
+        setSelectedNavIndex(targetIndex);
+        return;
+      }
+      targetIndex--;
+    }
+
+    // If no previous group found, stay at current position
+  }, [navItems, selectedNavIndex, setSelectedNavIndex]);
+
+  /**
+   * Jump to next group header (])
+   */
+  const navigateToNextGroup = useCallback(() => {
+    if (navItems.length === 0) return;
+
+    // Find the current position
+    let targetIndex = selectedNavIndex + 1;
+
+    // Search forwards for a group header
+    while (targetIndex < navItems.length) {
+      if (navItems[targetIndex]?.type === 'group-header') {
+        setSelectedNavIndex(targetIndex);
+        return;
+      }
+      targetIndex++;
+    }
+
+    // If no next group found, stay at current position
+  }, [navItems, selectedNavIndex, setSelectedNavIndex]);
+
+  /**
+   * Expand all groups (e)
+   */
+  const expandAllGroups = useCallback(() => {
+    setGroups((prev) => prev.map((group) => ({ ...group, expanded: true })));
+    showNotification('All groups expanded', 'info');
+  }, [setGroups, showNotification]);
+
+  /**
+   * Collapse all groups (E / Shift+E)
+   */
+  const collapseAllGroups = useCallback(() => {
+    setGroups((prev) => prev.map((group) => ({ ...group, expanded: false })));
+    showNotification('All groups collapsed', 'info');
+  }, [setGroups, showNotification]);
 
   /**
    * Handle Enter key on current selection
@@ -319,13 +409,49 @@ export function useKeyboardHandler(options: UseKeyboardHandlerOptions): void {
       return;
     }
 
-    // Navigation
+    // Navigation - Arrow keys and vi-style
     if (key.upArrow || input === 'k') {
       navigateUp();
     }
 
     if (key.downArrow || input === 'j') {
       navigateDown();
+    }
+
+    // Page Up/Down navigation
+    if (key.pageUp) {
+      navigatePageUp();
+    }
+
+    if (key.pageDown) {
+      navigatePageDown();
+    }
+
+    // Home/End navigation (escape sequences)
+    if (input.includes('\x1b[H') || input.includes('\x1b[1~')) {
+      navigateHome();
+    }
+
+    if (input.includes('\x1b[F') || input.includes('\x1b[4~')) {
+      navigateEnd();
+    }
+
+    // Group navigation
+    if (input === '[') {
+      navigateToPreviousGroup();
+    }
+
+    if (input === ']') {
+      navigateToNextGroup();
+    }
+
+    // Expand/collapse all groups
+    if (input === 'e') {
+      expandAllGroups();
+    }
+
+    if (input === 'E') {
+      collapseAllGroups();
     }
 
     if (key.return) {
@@ -338,6 +464,10 @@ export function useKeyboardHandler(options: UseKeyboardHandlerOptions): void {
 
     if (input === 's') {
       cycleSortMode();
+    }
+
+    if (input === 'v') {
+      cycleDisplayMode();
     }
 
     if (input === 'f') {

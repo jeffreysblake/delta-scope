@@ -3,7 +3,7 @@
 exports[`Dashboard > TUI Snapshot Tests > should match help view snapshot > help-view 1`] = `
 "┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ delta-scope v0.2.0               >               Help               [4 repos | 2 need attention] │
-│ Last refresh: 2:13:06 AM                                                 [c] Settings | [?] Help │
+│ Last refresh: 3:03:47 PM                                                 [c] Settings | [?] Help │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 
 
@@ -43,22 +43,22 @@ exports[`Dashboard > TUI Snapshot Tests > should match help view snapshot > help
 exports[`Dashboard > TUI Snapshot Tests > should match loaded state snapshot > loaded-state 1`] = `
 "┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ delta-scope v0.2.0                                                  [4 repos | 2 need attention] │
-│ Last refresh: 2:13:06 AM                                                 [c] Settings | [?] Help │
+│ Last refresh: 3:03:47 PM                                                 [c] Settings | [?] Help │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 
- ⚡ Uncommitted + Unpushed (1 repos) [expanded]
-     ⚡  repo4 ★
-       Path: /home/user/repos/repo4
-       Branch: feature | Changes: +15 -8
-       2 uncommitted files
-       1 unpushed commits
- ⚠ Uncommitted Changes (1 repos) [expanded]
-     ⚠ repo2
-       Path: /home/user/repos/repo2
-       Branch: main | Changes: +10 -5
-       3 uncommitted files
- ⬆ Unpushed Commits (1 repos) [collapsed]
- ✓ All Clean (1 repos) [collapsed]
+                                                                                              [1/6]
+ ▼ ⚡ Uncommitted + Unpushed (1 repos)  (2 files)(1 commits)
+     └ ⚡  repo4 ★
+         Path: /home/user/repos/repo4
+         Branch: feature │ +15 -8 ▓▓▓▓░░ │ 10 mos ago
+         2 uncommitted │ 1 unpushed
+ ▼ ⚠ Uncommitted Changes (1 repos) (3 files)
+     └ ⚠ repo2
+         Path: /home/user/repos/repo2
+         Branch: main │ +10 -5 ▓▓▓▓░░ │ 10 mos ago
+         3 uncommitted
+ ▶ ⬆ Unpushed Commits (1 repos) (2 commits)
+ ▶ ✓ All Clean (1 repos)
 
 ┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ ↑/↓:      Enter:    d:      f: Fav/: Filtes: Sory: Syster: RefresF5: Scai: AIc: Confi?: Helq:    │

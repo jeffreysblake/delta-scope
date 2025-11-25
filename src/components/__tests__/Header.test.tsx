@@ -4,13 +4,13 @@ import React from 'react';
 import { Header } from '../Header.js';
 
 describe('Header', () => {
+
   it('should render app name and version', () => {
     const { lastFrame } = render(
       <Header totalRepos={10} needsAttention={3} lastRefresh={null} view="home" />
     );
 
     expect(lastFrame()).toContain('delta-scope');
-    expect(lastFrame()).toContain('v0.2.0');
   });
 
   it('should display total repos count', () => {
@@ -18,7 +18,9 @@ describe('Header', () => {
       <Header totalRepos={42} needsAttention={0} lastRefresh={null} view="home" />
     );
 
-    expect(lastFrame()).toContain('42 repos');
+    const output = lastFrame();
+    expect(output).toContain('42');
+    expect(output).toMatch(/42\s+(r|repos)/);
   });
 
   it('should display repos needing attention', () => {
@@ -26,7 +28,9 @@ describe('Header', () => {
       <Header totalRepos={10} needsAttention={5} lastRefresh={null} view="home" />
     );
 
-    expect(lastFrame()).toContain('5 need attention');
+    const output = lastFrame();
+    expect(output).toContain('5');
+    expect(output).toMatch(/5\s+(need attention|!)/);
   });
 
   it('should not display "need attention" when count is zero', () => {
@@ -43,8 +47,9 @@ describe('Header', () => {
       <Header totalRepos={10} needsAttention={0} lastRefresh={refreshDate} view="home" />
     );
 
-    expect(lastFrame()).toContain('Last refresh:');
-    expect(lastFrame()).toContain(refreshDate.toLocaleTimeString());
+    const output = lastFrame();
+    expect(output).toMatch(/(Last refresh:|Ref:)/);
+    expect(output).toContain(refreshDate.toLocaleTimeString());
   });
 
   it('should display "Never" when no refresh has occurred', () => {
@@ -52,7 +57,9 @@ describe('Header', () => {
       <Header totalRepos={0} needsAttention={0} lastRefresh={null} view="home" />
     );
 
-    expect(lastFrame()).toContain('Last refresh: Never');
+    const output = lastFrame();
+    expect(output).toMatch(/(Last refresh:|Ref:)/);
+    expect(output).toContain('Never');
   });
 
   it('should show settings and help shortcuts', () => {
@@ -60,8 +67,9 @@ describe('Header', () => {
       <Header totalRepos={0} needsAttention={0} lastRefresh={null} view="home" />
     );
 
-    expect(lastFrame()).toContain('[c] Settings');
-    expect(lastFrame()).toContain('[?] Help');
+    const output = lastFrame();
+    expect(output).toContain('[c]');
+    expect(output).toContain('[?]');
   });
 
   describe('Breadcrumbs', () => {
@@ -71,7 +79,7 @@ describe('Header', () => {
       );
 
       const output = lastFrame();
-      expect(output).toContain('delta-scope v0.2.0');
+      expect(output).toContain('delta-scope');
       expect(output).not.toContain(' > ');
     });
 
@@ -87,9 +95,8 @@ describe('Header', () => {
       );
 
       const output = lastFrame();
-      expect(output).toContain('delta-scope v0.2.0');
-      expect(output).toContain(' > ');
       expect(output).toContain('delta-scope');
+      expect(output).toContain(' > ');
     });
 
     it('should show breadcrumb for settings view', () => {
@@ -98,7 +105,7 @@ describe('Header', () => {
       );
 
       const output = lastFrame();
-      expect(output).toContain('delta-scope v0.2.0');
+      expect(output).toContain('delta-scope');
       expect(output).toContain(' > ');
       expect(output).toContain('Settings');
     });
@@ -109,9 +116,19 @@ describe('Header', () => {
       );
 
       const output = lastFrame();
-      expect(output).toContain('delta-scope v0.2.0');
+      expect(output).toContain('delta-scope');
       expect(output).toContain(' > ');
       expect(output).toContain('Help');
+    });
+
+    it('should show breadcrumb for agent view', () => {
+      const { lastFrame } = render(
+        <Header totalRepos={10} needsAttention={0} lastRefresh={null} view="agent" />
+      );
+
+      const output = lastFrame();
+      expect(output).toContain('delta-scope');
+      expect(output).toContain(' > ');
     });
   });
 });

@@ -287,8 +287,8 @@ describe('Dashboard', () => {
 
       await vi.waitFor(() => {
         const output = lastFrame();
-        // Check that groups show expanded state
-        expect(output).toContain('expanded');
+        // Check that groups show expanded state (▼ symbol)
+        expect(output).toContain('▼');
       });
     });
 
@@ -322,8 +322,8 @@ describe('Dashboard', () => {
 
       await vi.waitFor(() => {
         const output = lastFrame();
-        // unpushed and clean groups are collapsed by default
-        expect(output).toContain('collapsed');
+        // unpushed and clean groups are collapsed by default (▶ symbol)
+        expect(output).toContain('▶');
       });
     });
   });
@@ -611,14 +611,15 @@ describe('Dashboard', () => {
         });
 
         const before = lastFrame();
-        const expandedCount = (before.match(/expanded/g) || []).length;
+        // Count ▼ (expanded) symbols
+        const expandedCount = (before.match(/▼/g) || []).length;
 
         // Press Enter to toggle first group (which is expanded by default)
         stdin.write('\r');
 
         await vi.waitFor(() => {
           const after = lastFrame();
-          const newExpandedCount = (after.match(/expanded/g) || []).length;
+          const newExpandedCount = (after.match(/▼/g) || []).length;
           // Should have one less expanded group
           expect(newExpandedCount).toBe(expandedCount - 1);
         });
@@ -643,14 +644,15 @@ describe('Dashboard', () => {
         await new Promise(resolve => setTimeout(resolve, 50));
 
         const before = lastFrame();
-        const expandedCountBefore = (before.match(/expanded/g) || []).length;
+        // Count ▼ (expanded) symbols
+        const expandedCountBefore = (before.match(/▼/g) || []).length;
 
         // Toggle to expand
         stdin.write('\r');
         await new Promise(resolve => setTimeout(resolve, 100));
 
         const after = lastFrame();
-        const expandedCountAfter = (after.match(/expanded/g) || []).length;
+        const expandedCountAfter = (after.match(/▼/g) || []).length;
 
         // Should have one more expanded group
         expect(expandedCountAfter).toBeGreaterThan(expandedCountBefore);

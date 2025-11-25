@@ -3,7 +3,7 @@
  */
 
 import React from 'react';
-import { Box, Text } from 'ink';
+import { Box, Text, useStdout } from 'ink';
 import type { View } from '../types/index.js';
 import type { AgentStatus } from '../types/agent.js';
 
@@ -26,6 +26,10 @@ export const Header: React.FC<HeaderProps> = ({
   agentStatus = 'not_configured',
   agentEnabled = false,
 }) => {
+  const { stdout } = useStdout();
+  const terminalWidth = stdout?.columns || 80;
+  const isNarrow = terminalWidth < 100;
+
   const refreshText = lastRefresh ? lastRefresh.toLocaleTimeString() : 'Never';
 
   // Agent status indicator
@@ -35,11 +39,11 @@ export const Header: React.FC<HeaderProps> = ({
     }
 
     const statusConfig = {
-      ready: { symbol: '🟢', text: 'AI: Ready', color: 'green' },
-      analyzing: { symbol: '🟡', text: 'AI: Analyzing', color: 'yellow' },
-      error: { symbol: '🔴', text: 'AI: Error', color: 'red' },
-      disabled: { symbol: '⚪', text: 'AI: Disabled', color: 'gray' },
-      not_configured: { symbol: '⚪', text: 'AI: Not Configured', color: 'gray' },
+      ready: { symbol: '🟢', text: isNarrow ? 'AI' : 'AI: Ready', color: 'green' },
+      analyzing: { symbol: '🟡', text: isNarrow ? 'AI...' : 'AI: Analyzing', color: 'yellow' },
+      error: { symbol: '🔴', text: isNarrow ? 'AI!' : 'AI: Error', color: 'red' },
+      disabled: { symbol: '⚪', text: isNarrow ? 'AI-' : 'AI: Disabled', color: 'gray' },
+      not_configured: { symbol: '⚪', text: isNarrow ? 'AI?' : 'AI: Not Configured', color: 'gray' },
     };
 
     const config = statusConfig[agentStatus];
@@ -57,7 +61,7 @@ export const Header: React.FC<HeaderProps> = ({
   const getBreadcrumb = () => {
     const base = (
       <Text key="base" bold color="magenta">
-        delta-scope v0.2.0
+        {isNarrow ? 'delta-scope' : 'delta-scope v0.2.0'}
       </Text>
     );
 
@@ -68,12 +72,16 @@ export const Header: React.FC<HeaderProps> = ({
     const parts = [base];
 
     if (view === 'detail' && currentRepoName) {
+      // Truncate repo name if too long on narrow terminals
+      const displayName = isNarrow && currentRepoName.length > 20
+        ? currentRepoName.substring(0, 17) + '...'
+        : currentRepoName;
       parts.push(
         <Text key="sep1" dimColor>
           {' > '}
         </Text>,
         <Text key="detail" color="cyan">
-          {currentRepoName}
+          {displayName}
         </Text>
       );
     } else if (view === 'settings') {
@@ -100,7 +108,7 @@ export const Header: React.FC<HeaderProps> = ({
           {' > '}
         </Text>,
         <Text key="agent" color="magenta">
-          AI Insights
+          {isNarrow ? 'AI' : 'AI Insights'}
         </Text>
       );
     }
@@ -113,11 +121,11 @@ export const Header: React.FC<HeaderProps> = ({
       <Box justifyContent="space-between">
         {getBreadcrumb()}
         <Box>
-          <Text dimColor>[{totalRepos} repos</Text>
+          <Text dimColor>[{totalRepos} {isNarrow ? 'r' : 'repos'}</Text>
           {needsAttention > 0 && (
             <>
               <Text> | </Text>
-              <Text color="yellow">{needsAttention} need attention</Text>
+              <Text color="yellow">{needsAttention} {isNarrow ? '!' : 'need attention'}</Text>
             </>
           )}
           {getAgentStatusIndicator()}
@@ -125,8 +133,8 @@ export const Header: React.FC<HeaderProps> = ({
         </Box>
       </Box>
       <Box justifyContent="space-between">
-        <Text dimColor>Last refresh: {refreshText}</Text>
-        <Text dimColor>[c] Settings | [?] Help</Text>
+        <Text dimColor>{isNarrow ? 'Ref:' : 'Last refresh:'} {refreshText}</Text>
+        <Text dimColor>{isNarrow ? '[c][?]' : '[c] Settings | [?] Help'}</Text>
       </Box>
     </Box>
   );

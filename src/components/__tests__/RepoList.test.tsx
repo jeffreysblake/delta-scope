@@ -72,8 +72,9 @@ describe('RepoList', () => {
       />
     );
 
-    expect(lastFrame()).toContain('[expanded]');
-    expect(lastFrame()).toContain('[collapsed]');
+    // Now using ▼ for expanded and ▶ for collapsed
+    expect(lastFrame()).toContain('▼');
+    expect(lastFrame()).toContain('▶');
   });
 
   it('should show repos in expanded groups', () => {

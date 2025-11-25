@@ -3,3 +3,4 @@
  */
 
 export { useKeyboardHandler } from './useKeyboardHandler.js';
+export { useTerminalSize, type TerminalSize } from './useTerminalSize.js';

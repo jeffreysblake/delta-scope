@@ -3,10 +3,10 @@
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Box, Text } from 'ink';
+import { Box, Text, useStdout } from 'ink';
 import Spinner from 'ink-spinner';
 import fuzzy from 'fuzzy';
-import type { GitRepo, RepoGroup, View, SortMode, DebugInfo, AppConfig, AIConfig } from '../types/index.js';
+import type { GitRepo, RepoGroup, View, SortMode, DebugInfo, AppConfig, AIConfig, DisplayMode } from '../types/index.js';
 
 import { Header } from './Header.js';
 import { Footer } from './Footer.js';
@@ -41,6 +41,36 @@ type NavItem =
   | { type: 'repo'; groupIndex: number; repoIndex: number };
 
 export const Dashboard: React.FC = () => {
+  // Terminal readiness - handled by cli.tsx delay, but we still check for valid dimensions
+  const { stdout } = useStdout();
+  // In test environment (no real TTY), be ready immediately
+  const [isReady, setIsReady] = useState(() => !process.stdout.isTTY);
+
+  // Ensure terminal has valid dimensions before rendering
+  useEffect(() => {
+    // In test environment, be ready immediately
+    if (!process.stdout.isTTY) {
+      setIsReady(true);
+      return undefined;
+    }
+
+    // In real terminal, verify dimensions are available
+    const hasValidDimensions = stdout && stdout.columns > 0 && stdout.rows > 0;
+    if (hasValidDimensions) {
+      setIsReady(true);
+      return undefined;
+    }
+
+    // Poll for valid dimensions
+    const checkInterval = setInterval(() => {
+      if (stdout && stdout.columns > 0 && stdout.rows > 0) {
+        clearInterval(checkInterval);
+        setIsReady(true);
+      }
+    }, 16);
+    return () => clearInterval(checkInterval);
+  }, [stdout]);
+
   // Core state
   const [view, setView] = useState<View>('home');
   const [repos, setRepos] = useState<GitRepo[]>([]);
@@ -57,6 +87,7 @@ export const Dashboard: React.FC = () => {
   const [filterActive, setFilterActive] = useState(false);
   const [filterQuery, setFilterQuery] = useState('');
   const [selectedRepo, setSelectedRepo] = useState<GitRepo | null>(null);
+  const [displayMode, setDisplayMode] = useState<DisplayMode>('detailed');
 
   // UI state
   const [lastKeypress, setLastKeypress] = useState<string>('');
@@ -390,13 +421,27 @@ export const Dashboard: React.FC = () => {
     setSortMode(modes[(modes.indexOf(sortMode) + 1) % modes.length]);
   }, [sortMode]);
 
+  const cycleDisplayMode = useCallback(() => {
+    setDisplayMode((prev) => prev === 'detailed' ? 'compact' : 'detailed');
+    showNotification(`Display: ${displayMode === 'detailed' ? 'compact' : 'detailed'}`, 'info');
+  }, [displayMode, showNotification]);
+
+  // Calculate scroll position for display
+  const scrollPosition = useMemo(() => {
+    if (navItems.length === 0) return { current: 0, total: 0 };
+    return {
+      current: selectedNavIndex + 1, // 1-indexed for display
+      total: navItems.length,
+    };
+  }, [selectedNavIndex, navItems.length]);
+
   // Keyboard handler
   useKeyboardHandler({
     view, groups, navItems, selectedNavIndex, filterActive, showValidation,
     error, confirmationDialog, showSystemRepos, repos, isDev,
     setView, setSelectedNavIndex, setFilterActive, setFilterQuery, setShowValidation,
-    setError, setSelectedRepo, setShowSystemRepos, setRepos, setLastKeypress,
-    loadRepos, toggleGroup, cycleSortMode, runAgentAnalysis, showNotification,
+    setError, setSelectedRepo, setShowSystemRepos, setRepos, setLastKeypress, setGroups,
+    loadRepos, toggleGroup, cycleSortMode, cycleDisplayMode, runAgentAnalysis, showNotification,
   });
 
   // Dismiss handler
@@ -429,6 +474,11 @@ export const Dashboard: React.FC = () => {
     currentRepoName: selectedRepo?.name, agentStatus,
     agentEnabled: configManager.get().ai?.enabled || false,
   };
+
+  // Wait for terminal to be ready before rendering to prevent ghost frames
+  if (!isReady) {
+    return null;
+  }
 
   if (showValidation && validationIssues.length > 0) {
     return (
@@ -497,6 +547,8 @@ export const Dashboard: React.FC = () => {
             <RepoList
               groups={groups} selectedGroupIndex={selectedGroupIndex}
               selectedRepoIndex={selectedRepoIndex} onToggleGroup={toggleGroup}
+              displayMode={displayMode}
+              scrollPosition={scrollPosition}
             />
           </>
         )}

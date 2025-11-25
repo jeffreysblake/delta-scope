@@ -4,6 +4,8 @@
 
 export type RepoStatus = 'clean' | 'uncommitted' | 'unpushed' | 'both';
 
+export type DisplayMode = 'compact' | 'detailed';
+
 export interface GitRepo {
   path: string;
   name: string;

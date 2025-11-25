@@ -86,7 +86,7 @@ describe('RepoItem', () => {
         <RepoItem repo={mockRepo} isSelected={false} compact={false} />
       );
 
-      expect(lastFrame()).toContain('3 uncommitted files');
+      expect(lastFrame()).toContain('3 uncommitted');
     });
 
     it('should show unpushed commits when present', () => {
@@ -95,7 +95,7 @@ describe('RepoItem', () => {
         <RepoItem repo={repoWithUnpushed} isSelected={false} compact={false} />
       );
 
-      expect(lastFrame()).toContain('5 unpushed commits');
+      expect(lastFrame()).toContain('5 unpushed');
     });
 
     it('should not show uncommitted files when zero', () => {
@@ -104,7 +104,7 @@ describe('RepoItem', () => {
         <RepoItem repo={cleanRepo} isSelected={false} compact={false} />
       );
 
-      expect(lastFrame()).not.toContain('uncommitted files');
+      expect(lastFrame()).not.toContain('uncommitted');
     });
 
     it('should not show unpushed commits when zero', () => {
@@ -112,7 +112,7 @@ describe('RepoItem', () => {
         <RepoItem repo={mockRepo} isSelected={false} compact={false} />
       );
 
-      expect(lastFrame()).not.toContain('unpushed commits');
+      expect(lastFrame()).not.toContain('unpushed');
     });
 
     it('should show favorite star', () => {
